@@ -36,15 +36,28 @@ sub content {
   my $html;
 
   ## Basic information about the motif
-  my $summary = $self->new_twocol;
-  $summary->add_row('Name', $object->name);
-  my $bm_link = $self->hub->get_ExtURL_link($self->object->binding_matrix_name, 'JASPAR', $self->object->binding_matrix_name); 
-  $summary->add_row('Binding matrix', $bm_link);
-  $summary->add_row('Score', '0.935');
-  my $cell_lines = 'HMEC, HUVEC';
-  $summary->add_row('Evidence', $cell_lines);
+  my $twocol  = $self->new_twocol;
+  my %summary = %{$object->summary||{}};
 
-  $html .= $summary->render; 
+  $twocol->add_row('Name', $object->name);
+
+  my $description = $object->binding_matrix->description || '[waiting for API]';
+  $twocol->add_row('Description', $description);
+
+  my $r = sprintf('%s:%s-%s', $summary{'seq_region_name'}, $summary{'start'}, $summary{'end'});
+  my $url = $self->hub->url({'type' => 'Location', 'action' => 'View', 'r' => $r});
+  my $location = sprintf('<a href="%s">%s</a> (%s)', $url, $r, $summary{'strand'});
+  $twocol->add_row('Location', $location);
+
+  my $bm_link = $self->hub->get_ExtURL_link($self->object->binding_matrix_name, 'JASPAR', $self->object->binding_matrix_name); 
+  $twocol->add_row('Binding matrix', $bm_link);
+
+  $twocol->add_row('Score', $summary{'score'});
+
+  my $cell_lines = '[waiting for API]';
+  $twocol->add_row('Evidence', $cell_lines);
+
+  $html .= $twocol->render; 
 
   ## Regulatory context
   my $rf            = $self->hub->core_object('regulation');
