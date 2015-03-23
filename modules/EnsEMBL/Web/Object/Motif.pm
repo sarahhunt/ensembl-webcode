@@ -64,6 +64,8 @@ sub _adaptor {
 }
 
 sub motif             { my $self = shift; return $self->Obj;                            }
+sub summary           { my $self = shift; return $self->Obj->summary_as_hash;           }
+sub binding_matrix    { my $self = shift; return $self->Obj->binding_matrix;            }
 sub display_label     { my $self = shift; return $self->Obj->display_label;             }
 sub stable_id         { my $self = shift; return $self->Obj->interdb_stable_id;         }
 sub analysis          { my $self = shift; return $self->Obj->analysis;                  }
