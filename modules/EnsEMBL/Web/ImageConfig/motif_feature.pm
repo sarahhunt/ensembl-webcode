@@ -45,6 +45,10 @@ sub init {
   ));
   $self->image_resize = 1;
 
+  $self->add_tracks('sequence',
+    [ 'contig', 'Contigs', 'contig', { display => 'normal', strand => 'r' }]
+  );
+
   $self->add_tracks('other',
     [ 'spacer',  '', 'spacer',  { display => 'normal', strand => 'b', name => '', description => '' }],
     [ 'scalebar',  '', 'scalebar',  { display => 'normal', strand => 'b', name => 'Scale bar', description => 'Shows the scalebar' }],
@@ -59,14 +63,24 @@ sub init {
   
   $self->load_tracks;
 
-    $self->modify_configs(
-    [ 'fg_regulatory_features_legend', 'fg_segmentation_features_legend', 'fg_methylation_legend' ],
-    { display => 'off' }
+  $self->modify_configs(
+    [ 'transcript_core_ensembl' ],
+    { display => 'transcript_nolabel' }
+  );
+
+  $self->modify_configs(
+    [ 'variation_feature_variation' ],
+    { display => 'compact' }
   );
 
   $self->modify_configs(
     [ 'reg_feats_MultiCell' ],
     { display => 'normal' }
+  );
+
+  $self->modify_configs(
+    [ 'fg_regulatory_features_legend', 'fg_segmentation_features_legend', 'fg_methylation_legend' ],
+    { display => 'off' }
   );
 }
 
