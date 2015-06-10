@@ -62,7 +62,11 @@ sub can_export        { return 0;         }
 sub default_action    { return 'Summary'; }
 sub __data            { return $_[0]{'data'};                  }
 sub __objecttype      { return $_[0]{'data'}{'_objecttype'};   }
+
+## Old accessor - deprecate in due course
 sub Obj               { return $_[0]{'data'}{'_object'};       } # Gets the underlying Ensembl object wrapped by the web object
+## New accessor - to keep the webcode cleaner and more readable
+sub api_object        { return $_[0]{'data'}{'_object'};       } # Gets the underlying API object
 sub hub               { return $_[0]{'data'}{'_hub'};          }
 
 sub caption           { return ''; }
