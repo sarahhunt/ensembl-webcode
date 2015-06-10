@@ -22,9 +22,6 @@ package EnsEMBL::Web::Object::Gene;
 
 use strict;
 
-use Role::Tiny::With;
-with 'EnsEMBL::Web::Role::Gene';
-
 use Time::HiRes qw(time);
 
 use EnsEMBL::Web::Constants; 
