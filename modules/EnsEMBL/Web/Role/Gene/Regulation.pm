@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Gene::Variation;
+package EnsEMBL::Web::Role::Gene::Regulation;
 
 use Role::Tiny;
 
