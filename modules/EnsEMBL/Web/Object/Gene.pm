@@ -34,37 +34,37 @@ our $MEMD = EnsEMBL::Web::Cache->new;
 
 ######## WRAPPERS AROUND API METHODS #############
 
-sub gene                        { return $_[0]->Obj;             }
-sub stable_id                   { return $_[0]->Obj->stable_id;  }
-sub feature_type                { return $_[0]->Obj->type;       }
-sub analysis                    { return $_[0]->Obj->analysis;   }
-sub source                      { return $_[0]->Obj->source;     }
-sub version                     { return $_[0]->Obj->version;    }
-sub logic_name                  { return $_[0]->Obj->analysis->logic_name; }
-sub coord_system                { return $_[0]->Obj->slice->coord_system->name; }
+sub gene                        { return $_[0]->api_object;             }
+sub stable_id                   { return $_[0]->api_object->stable_id;  }
+sub feature_type                { return $_[0]->api_object->type;       }
+sub analysis                    { return $_[0]->api_object->analysis;   }
+sub source                      { return $_[0]->api_object->source;     }
+sub version                     { return $_[0]->api_object->version;    }
+sub logic_name                  { return $_[0]->api_object->analysis->logic_name; }
+sub coord_system                { return $_[0]->api_object->slice->coord_system->name; }
 sub seq_region_type             { return $_[0]->coord_system;    }
-sub seq_region_name             { return $_[0]->Obj->slice->seq_region_name; }
-sub seq_region_start            { return $_[0]->Obj->start;      }
-sub seq_region_end              { return $_[0]->Obj->end;        }
-sub seq_region_strand           { return $_[0]->Obj->strand;     }
-sub feature_length              { return $_[0]->Obj->feature_Slice->length; }
-sub get_latest_incarnation      { return $_[0]->Obj->get_latest_incarnation; }
-sub get_all_associated_archived { return $_[0]->Obj->get_all_associated_archived; }
+sub seq_region_name             { return $_[0]->api_object->slice->seq_region_name; }
+sub seq_region_start            { return $_[0]->api_object->start;      }
+sub seq_region_end              { return $_[0]->api_object->end;        }
+sub seq_region_strand           { return $_[0]->api_object->strand;     }
+sub feature_length              { return $_[0]->api_object->feature_Slice->length; }
+sub get_latest_incarnation      { return $_[0]->api_object->get_latest_incarnation; }
+sub get_all_associated_archived { return $_[0]->api_object->get_all_associated_archived; }
 sub gxa_check                   { return; } #implemented in widget plugin, to check for gene expression atlas availability
 
 ######### WEB-SPECIFIC METHODS ################
 
 sub type_name                   { return $_[0]->species_defs->translate('Gene'); }
 
-sub default_action { return $_[0]->Obj->isa('Bio::EnsEMBL::ArchiveStableId') ? 'Idhistory' : $_[0]->Obj->isa('Bio::EnsEMBL::Compara::Family') ? 'Family' : 'Summary'; }
+sub default_action { return $_[0]->api_object->isa('Bio::EnsEMBL::ArchiveStableId') ? 'Idhistory' : $_[0]->api_object->isa('Bio::EnsEMBL::Compara::Family') ? 'Family' : 'Summary'; }
 
 sub short_caption {
   my $self = shift;
   
   return 'Gene-based displays' unless shift eq 'global';
   
-  my $dxr   = $self->Obj->can('display_xref') ? $self->Obj->display_xref : undef;
-  my $label = $dxr ? $dxr->display_id : $self->Obj->stable_id;
+  my $dxr   = $self->api_object->can('display_xref') ? $self->api_object->display_xref : undef;
+  my $label = $dxr ? $dxr->display_id : $self->api_object->stable_id;
   
   return "Gene: $label";  
 }
@@ -92,7 +92,7 @@ sub availability {
   
   if (!$self->{'_availability'}) {
     my $availability = $self->_availability;
-    my $obj = $self->Obj;
+    my $obj = $self->api_object;
     
     if ($obj->isa('Bio::EnsEMBL::ArchiveStableId')) {
       $availability->{'history'} = 1;
@@ -146,7 +146,7 @@ sub availability {
 
 sub counts {
   my ($self, $member, $pan_member) = @_;
-  my $obj = $self->Obj;
+  my $obj = $self->api_object;
 
   return {} unless $obj->isa('Bio::EnsEMBL::Gene');
   
@@ -207,10 +207,10 @@ sub get_phenotype {
   
   my $phen_count  = 0;
   my $pfa         = Bio::EnsEMBL::Registry->get_adaptor($self->species, 'variation', 'PhenotypeFeature');
-  $phen_count     = $pfa->count_all_by_Gene($self->Obj);
+  $phen_count     = $pfa->count_all_by_Gene($self->api_object);
 
   if (!$phen_count) {
-    my $hgncs = $self->obj->get_all_DBEntries('hgnc') || [];
+    my $hgncs = $self->api_object->get_all_DBEntries('hgnc') || [];
 
     if(scalar @$hgncs && $hgncs->[0]) {
       my $hgnc_name = $hgncs->[0]->display_id;
@@ -224,7 +224,7 @@ sub get_xref_available{
   my $self=shift;
   my $available = ($self->count_xrefs > 0);
   if(!$available){
-    my @my_transcripts= @{$self->Obj->get_all_Transcripts};
+    my @my_transcripts= @{$self->api_object->get_all_Transcripts};
     my @db_links;
     for (my $i=0; !$available && ($i< scalar @my_transcripts); $i++) {
       eval { 
@@ -256,7 +256,7 @@ sub count_xrefs {
        AND g.gene_id = ?';
 
   my $sth = $dbc->prepare($sql);
-  $sth->execute($self->Obj->dbID);
+  $sth->execute($self->api_object->dbID);
   while (my ($label,$db_name,$status) = $sth->fetchrow_array) {
     #these filters are taken directly from Component::_sort_similarity_links
     #code duplication needs removing, and some of these may well not be needed any more
@@ -278,7 +278,7 @@ sub count_gene_supporting_evidence {
   #count all supporting_features and transcript_supporting_features for the gene
   #- not used in the tree but keep the code just in case we change our minds again!
   my $self = shift;
-  my $obj = $self->Obj;
+  my $obj = $self->api_object;
   my $o_type = $self->get_db;
   my $evi_count = 0;
   my %c;
