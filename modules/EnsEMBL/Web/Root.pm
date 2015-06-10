@@ -433,9 +433,9 @@ sub new_bio_object {
 
 sub new_object {
   my ($self, $module, $api_object) = @_;
-  my $data = $self->deepcopy($_[-1]) || {};
+  my $data = $self->deepcopy($_[3]) || {};
   $data->{'_object'} = $api_object;
-  return $self->new_module('Object', $module, $data);
+  return $self->new_module('Object', $module, $data, $_[4]);
 }
 
 sub new_factory {
@@ -447,14 +447,14 @@ sub new_factory {
 }
 
 sub new_module {
-  my ($self, $type, $module, $data) = @_;
+  my ($self, $type, $module, $data, $roles) = @_;
   my $class = "EnsEMBL::Web::${type}::$module";
   
   $data->{'_objecttype'} = $module;
   delete $data->{'viewconfig'};
   
   if ($self->dynamic_use($class)) {
-    return $class->new($data);
+    return $class->new($data, $roles);
   } else {
     #warn "COULD NOT USE OBJECT MODULE $class";
     return undef;
