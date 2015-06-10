@@ -35,13 +35,23 @@ use HTML::Entities  qw(encode_entities);
 use EnsEMBL::Web::DBSQL::ArchiveAdaptor;
 use HTML::Entities  qw(encode_entities);
 use List::Util qw(min max);
+use Role::Tiny;
 
 use base qw(EnsEMBL::Web::Root);
 
 sub new {
-  my ($class, $data) = @_;
+  my ($class, $data, $roles) = @_;
+
   my $self = { data => $data };
   bless $self, $class;
+  
+  ## Dynamically add any required roles, for extra functionality
+  my @role_classes;
+  foreach (@{$roles||[]}) {
+    push @role_classes, 'EnsEMBL::Web::Role::'.$_;
+  }
+  Role::Tiny->apply_roles_to_object($self, @role_classes) if scalar(@role_classes);
+
   return $self; 
 }
 
