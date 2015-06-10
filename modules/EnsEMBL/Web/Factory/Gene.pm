@@ -38,7 +38,24 @@ sub createObjectsInternal {
   my $adaptor = $db_adaptor->get_GeneAdaptor;
   my $gene = $adaptor->fetch_by_stable_id($self->param('g'));
   return undef unless $gene;
-  return $self->new_object('Gene', $gene, $self->__data);
+  return $self->new_object('Gene', $gene, $self->__data, $self->get_roles);
+}
+
+sub get_roles {
+  my $self = shift;
+  my $roles = ['Gene'];
+  my $action = $self->hub->action;
+
+  if ($action =~ /Compara|Tree|Family/) {
+    push @$roles, 'Gene::Compara';
+  }
+  if ($action =~ /Variation|Phenotype/) {
+    push @$roles, 'Gene::Variation';
+  }
+  if ($action =~ /Regulation/) {
+    push @$roles, 'Gene::Regulation';
+  }
+  return $roles;
 }
 
 sub createObjects { 
@@ -113,7 +130,8 @@ sub createObjects {
  
   my $out; 
   if ($gene) {
-    $out = $self->new_object('Gene', $gene, $self->__data);
+
+    $out = $self->new_object('Gene', $gene, $self->__data, $self->get_roles);
     $self->DataObjects($out);
     $self->generate_object('Location', $gene->feature_Slice) if $gene->can('feature_Slice'); # Generate a location from the gene. Won't be called if $gene is an ArchiveStableId object
     
