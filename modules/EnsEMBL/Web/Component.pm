@@ -37,6 +37,7 @@ our @EXPORT    = @EXPORT_OK;
 use HTML::Entities  qw(encode_entities);
 use Text::Wrap      qw(wrap);
 use List::MoreUtils qw(uniq);
+use Role::Tiny;
 
 use EnsEMBL::Draw::DrawableContainer;
 use EnsEMBL::Draw::VDrawableContainer;
@@ -61,6 +62,7 @@ sub new {
     renderer      => shift,
     id            => $id,
     object        => undef,
+    object_roles  => [],
     cacheable     => 0,
     mcacheable    => 1,
     ajaxable      => 0,
@@ -78,6 +80,7 @@ sub new {
   bless $self, $class;
   
   $self->_init;
+  $self->apply_object_roles;
   
   return $self;
 }
@@ -151,6 +154,15 @@ sub object {
   return $self->builder ? $self->builder->object : $self->{'object'};
 }
 
+sub object_roles {
+  ## @accessor
+  ## @return Arrayref
+  my $self = shift;
+  my $roles = shift;
+  $self->{'object_roles'} = $roles if $roles && ref($roles) eq 'ARRAY';
+  return $self->{'object_roles'};
+}
+
 sub cacheable {
   ## @accessor
   ## @return Boolean
@@ -210,6 +222,19 @@ sub html_format {
 }
 
 ########### END OF ACCESSORS ###################
+
+sub apply_object_roles {
+## Dynamically add any required roles to data object, for extra functionality
+  my $self = shift;
+  my @roles;
+  foreach (@{$self->object_roles}) {
+    push @roles, 'EnsEMBL::Web::Role::'.$_;
+  }
+  ## Don't try to apply non-existent roles, or Role::Tiny will complain
+  if (@roles) {
+    Role::Tiny->apply_roles_to_object($self->object, @roles);
+  }
+}
 
 sub make_twocol {
   my ($self, $order) = @_;

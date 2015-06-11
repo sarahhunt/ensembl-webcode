@@ -28,6 +28,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(0);
   $self->ajaxable(1);
+  $self->SUPER::roles;
 }
 
 sub content {

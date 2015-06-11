@@ -30,6 +30,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(1);
   $self->ajaxable(1);
+  $self->SUPER::object_roles(['Gene::Homology']);
 }
 
 sub content {

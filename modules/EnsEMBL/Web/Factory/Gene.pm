@@ -38,40 +38,7 @@ sub createObjectsInternal {
   my $adaptor = $db_adaptor->get_GeneAdaptor;
   my $gene = $adaptor->fetch_by_stable_id($self->param('g'));
   return undef unless $gene;
-  return $self->new_object('Gene', $gene, $self->__data, $self->get_roles);
-}
-
-sub get_roles {
-  my $self = shift;
-  my $roles = ['Bio', 'Bio::Gene'];
-  my $action = $self->hub->action;
-
-  ## Compara pages
-  if ($action =~ /Tree/) {
-    push @$roles, 'Bio::Gene::Tree';
-  }
-  elsif ($action =~ /Family/) {
-    push @$roles, 'Bio::Gene::Family';
-  }
-  elsif ($action =~ /Compara/) {
-    push @$roles, 'Bio::Gene::Homology';
-  }
-
-  ## Variation pages
-  if ($action =~ /Variation/) {
-    push @$roles, 'Bio::Gene::Variation';
-  }
-  elsif ($action =~ /Phenotype/) {
-    push @$roles, 'Bio::Gene::Variation';
-    push @$roles, 'Bio::Gene::Homology';
-  }
-
-  ## Regulation pages
-  if ($action =~ /Regulation/) {
-    push @$roles, 'Bio::Gene::Regulation';
-  }
-
-  return $roles;
+  return $self->new_object('Gene', $gene, $self->__data);
 }
 
 sub createObjects { 
@@ -147,7 +114,7 @@ sub createObjects {
   my $out; 
   if ($gene) {
 
-    $out = $self->new_object('Gene', $gene, $self->__data, $self->get_roles);
+    $out = $self->new_object('Gene', $gene, $self->__data);
     $self->DataObjects($out);
     $self->generate_object('Location', $gene->feature_Slice) if $gene->can('feature_Slice'); # Generate a location from the gene. Won't be called if $gene is an ArchiveStableId object
     

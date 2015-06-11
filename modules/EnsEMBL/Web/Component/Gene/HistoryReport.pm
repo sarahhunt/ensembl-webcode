@@ -28,6 +28,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(0);
   $self->ajaxable(0);
+  $self->SUPER::object_roles;
 }
 
 sub content_protein {

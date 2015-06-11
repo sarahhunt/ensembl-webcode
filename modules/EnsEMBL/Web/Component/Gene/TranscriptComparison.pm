@@ -22,7 +22,11 @@ use strict;
 
 use base qw(EnsEMBL::Web::Component::TextSequence EnsEMBL::Web::Component::Gene);
 
-sub _init { $_[0]->SUPER::_init(100); }
+sub _init { 
+  my $self = shift;
+  $self->SUPER::object_roles;
+  $self->SUPER::_init(100); 
+}
 
 sub initialize {
   my ($self, $start, $end) = @_;

@@ -27,6 +27,7 @@ sub _init {
   $self->cacheable(0);
   $self->ajaxable(1);
   $self->has_image(1);
+  $self->SUPER::object_roles(['Gene::Tree']);
 }
 
 sub get_details {

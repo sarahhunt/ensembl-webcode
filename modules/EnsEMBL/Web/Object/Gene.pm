@@ -77,4 +77,15 @@ sub caption {
   return [$heading, $subhead];
 }
 
+sub display_xref {
+  my $self = shift;
+  return undef if $self->Obj->isa('Bio::EnsEMBL::Compara::Family');
+  return undef if $self->Obj->isa('Bio::EnsEMBL::ArchiveStableId');
+  my $trans_xref = $self->Obj->display_xref();
+  return undef unless  $trans_xref;
+  (my $db_display_name = $trans_xref->db_display_name) =~ s/(.*HGNC).*/$1 Symbol/; #hack for HGNC name labelling, remove in e58
+  return ($trans_xref->display_id, $trans_xref->dbname, $trans_xref->primary_id, $db_display_name, $trans_xref->info_text );
+}
+
+
 1

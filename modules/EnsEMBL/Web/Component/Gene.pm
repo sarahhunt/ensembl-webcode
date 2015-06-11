@@ -22,5 +22,18 @@ use strict;
 
 use base qw(EnsEMBL::Web::Component::Shared);
 
+sub object_roles {
+### Add generic gene object roles to all gene components
+  my ($self, $roles) = @_;
+  $roles ||= [];
+  foreach (@$roles) {
+    $_ = 'Bio::'.$_;
+  }
+  unshift @$roles, qw(Bio Bio::Gene);
+  warn ">>> ADDING ROLES @$roles";
+  $self->SUPER::object_roles($roles);
+}
+
+
 1;
 

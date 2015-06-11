@@ -27,6 +27,7 @@ sub _init {
 
   $self->cacheable(1);
   $self->ajaxable(0);
+  $self->SUPER::object_roles;
 }
 
 sub content {

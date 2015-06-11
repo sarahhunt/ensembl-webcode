@@ -447,14 +447,14 @@ sub new_factory {
 }
 
 sub new_module {
-  my ($self, $type, $module, $data, $roles) = @_;
+  my ($self, $type, $module, $data) = @_;
   my $class = "EnsEMBL::Web::${type}::$module";
   
   $data->{'_objecttype'} = $module;
   delete $data->{'viewconfig'};
   
   if ($self->dynamic_use($class)) {
-    return $class->new($data, $roles);
+    return $class->new($data);
   } else {
     #warn "COULD NOT USE OBJECT MODULE $class";
     return undef;
