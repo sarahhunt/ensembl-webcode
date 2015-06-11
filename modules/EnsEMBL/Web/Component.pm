@@ -27,6 +27,9 @@ package EnsEMBL::Web::Component;
 
 use strict;
 
+## Stop Role::Tiny from spamming logs with pointless warnings
+no warnings::anywhere qw(uninitialized);
+
 use base qw(EnsEMBL::Web::Root Exporter);
 
 use Digest::MD5 qw(md5_hex);
