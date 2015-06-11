@@ -22,11 +22,6 @@ package EnsEMBL::Web::Role::Bio;
 
 use Role::Tiny;
 
-sub counts            { return {};        }
-sub _counts           { return {};        } # Implemented in plugins
-sub availability      { return {};        }
-sub can_export        { return 0;         }
-sub default_action    { return 'Summary'; }
 sub __data            { return $_[0]{'data'};                  }
 sub __objecttype      { return $_[0]{'data'}{'_objecttype'};   }
 
