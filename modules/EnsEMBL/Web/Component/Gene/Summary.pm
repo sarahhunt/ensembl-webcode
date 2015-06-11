@@ -30,7 +30,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(0);
   $self->ajaxable(0);
-  $self->SUPER::object_roles;
+  $self->object_roles;
 }
 
 # status warnings/hints would be eg out-of-date page, dubious evidence, etc

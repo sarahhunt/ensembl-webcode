@@ -28,7 +28,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(1);
   $self->ajaxable(1);
-  $self->SUPER::object_roles(['Gene::Homology']);
+  $self->object_roles(['Gene::Homology']);
 }
 
 ## Stub - implement in plugin if you want to display a summary table

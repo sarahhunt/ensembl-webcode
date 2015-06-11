@@ -24,7 +24,7 @@ use base qw(EnsEMBL::Web::Component::TextSequence EnsEMBL::Web::Component::Gene)
 
 sub _init { 
   my $self = shift;
-  $self->SUPER::object_roles;
+  $self->object_roles;
   $self->SUPER::_init(500); 
 }
 

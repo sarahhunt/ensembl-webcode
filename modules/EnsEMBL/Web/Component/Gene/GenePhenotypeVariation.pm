@@ -27,7 +27,7 @@ sub _init {
   my $self = shift;
   $self->cacheable(1);
   $self->ajaxable(1);
-  $self->SUPER::object_roles(['Gene::Variation']);
+  $self->object_roles(['Gene::Variation', 'Gene::Homology']);
 }
 
 sub content {
