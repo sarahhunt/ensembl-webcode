@@ -154,12 +154,16 @@ sub object {
   return $self->builder ? $self->builder->object : $self->{'object'};
 }
 
-sub object_roles {
+sub set_object_roles {
+  ## @accessor
+  my ($self, $roles) = @_;
+  $self->{'object_roles'} = $roles if $roles && ref($roles) eq 'ARRAY';
+}
+
+sub get_object_roles {
   ## @accessor
   ## @return Arrayref
   my $self = shift;
-  my $roles = shift;
-  $self->{'object_roles'} = $roles if $roles && ref($roles) eq 'ARRAY';
   return $self->{'object_roles'};
 }
 
@@ -227,7 +231,7 @@ sub apply_object_roles {
 ## Dynamically add any required roles to data object, for extra functionality
   my $self = shift;
   my @roles;
-  foreach (@{$self->object_roles}) {
+  foreach (@{$self->get_object_roles}) {
     push @roles, 'EnsEMBL::Web::Role::'.$_;
   }
   ## Don't try to apply non-existent roles, or Role::Tiny will complain
