@@ -18,6 +18,8 @@ limitations under the License.
 
 package EnsEMBL::Web::Role::Gene::Variation;
 
+### Variation-specific data-munging for gene pages
+
 use Role::Tiny;
 
 # Calls for GeneSNPView

@@ -18,6 +18,8 @@ limitations under the License.
 
 package EnsEMBL::Web::Role::Gene::Regulation;
 
+### Regulation-specific data-munging for gene pages
+
 use Role::Tiny;
 
 sub get_fg_db {
