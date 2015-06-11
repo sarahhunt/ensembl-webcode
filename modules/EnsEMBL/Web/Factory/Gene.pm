@@ -46,15 +46,22 @@ sub get_roles {
   my $roles = ['Gene'];
   my $action = $self->hub->action;
 
-  if ($action =~ /Compara|Tree|Family/) {
+  if ($action =~ /Compara|Ortholog|Tree|Family/) {
     push @$roles, 'Gene::Compara';
   }
-  if ($action =~ /Variation|Phenotype/) {
+
+  if ($action =~ /Variation/) {
     push @$roles, 'Gene::Variation';
   }
+  elsif ($action =~ /Phenotype/) {
+    push @$roles, 'Gene::Variation';
+    push @$roles, 'Gene::Compara';
+  }
+
   if ($action =~ /Regulation/) {
     push @$roles, 'Gene::Regulation';
   }
+
   return $roles;
 }
 
