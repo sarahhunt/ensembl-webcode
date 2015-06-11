@@ -46,18 +46,27 @@ sub get_roles {
   my $roles = ['Bio', 'Bio::Gene'];
   my $action = $self->hub->action;
 
-  if ($action =~ /Compara|Ortholog|Tree|Family/) {
-    push @$roles, 'Bio::Gene::Compara';
+  ## Compara pages
+  if ($action =~ /Tree/) {
+    push @$roles, 'Bio::Gene::Tree';
+  }
+  elsif ($action =~ /Family/) {
+    push @$roles, 'Bio::Gene::Family';
+  }
+  elsif ($action =~ /Compara/) {
+    push @$roles, 'Bio::Gene::Homology';
   }
 
+  ## Variation pages
   if ($action =~ /Variation/) {
     push @$roles, 'Bio::Gene::Variation';
   }
   elsif ($action =~ /Phenotype/) {
     push @$roles, 'Bio::Gene::Variation';
-    push @$roles, 'Bio::Gene::Compara';
+    push @$roles, 'Bio::Gene::Homology';
   }
 
+  ## Regulation pages
   if ($action =~ /Regulation/) {
     push @$roles, 'Bio::Gene::Regulation';
   }
