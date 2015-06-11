@@ -203,6 +203,8 @@ sub get_earliest_archive {
 }
 
 sub rose_manager {
+## FIXME Belongs in E::W::Role::Interface, but can't be moved until the admin and tools plugins are updated to use roles
+
   ## Returns the ORM::Rose::Manager class for the given type
   ## @param DB name
   ## @param Manager type
