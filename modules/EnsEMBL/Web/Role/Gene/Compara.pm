@@ -18,6 +18,8 @@ limitations under the License.
 
 package EnsEMBL::Web::Role::Gene::Compara;
 
+### Compara-specific data-munging for gene pages
+
 use Role::Tiny;
 
 sub get_all_families {
@@ -116,7 +118,7 @@ sub get_homology_matches {
   $homology_description ||= 'ortholog';
   $compara_db           ||= 'compara';
 
-  my $key = "$homology_source::$homology_description";
+  my $key = $homology_source.'::'.$homology_description;
 
   if (!$self->{'homology_matches'}{$key}) {
     my $homologues = $self->fetch_homology_species_hash($homology_source, $homology_description, $compara_db);
@@ -184,17 +186,12 @@ sub get_homologies {
 
   return unless $database;
 
-  $self->timer_push('starting to fetch', 6);
-
   my $query_member   = $database->get_GeneMemberAdaptor->fetch_by_stable_id($geneid);
 
   return unless defined $query_member;
 
   my $homology_adaptor = $database->get_HomologyAdaptor;
   my $homologies_array = $homology_adaptor->fetch_all_by_Member($query_member); # It is faster to get all the Homologues and discard undesired entries than to do fetch_all_by_Member_method_link_type
-  #warn ">>> @$homologies_array";
-
-  $self->timer_push('fetched', 6);
 
   # Strategy: get the root node (this method gets the whole lineage without getting sister nodes)
   # We use right - left indexes to get the order in the hierarchy.
@@ -207,13 +204,10 @@ sub get_homologies {
     while ($node) {
       $node->get_tagvalue('scientific name');
 
-      # Found a speed boost with nytprof -- avilella
-      # $classification{$node->get_tagvalue('scientific name')} = $node->right_index - $node->left_index;
       $classification{$node->{_tags}{'scientific name'}} = $node->{'_right_index'} - $node->{'_left_index'};
       $node = $node->children->[0];
     }
   }
-  $self->timer_push('classification', 6);
 
   my $ok_homologies = [];
   foreach my $homology (@$homologies_array) {
@@ -248,10 +242,8 @@ sub fetch_homology_species_hash {
 
     # FIXME: ucfirst $genome_db_name is a hack to get species names right for the links in the orthologue/paralogue tables.
     # There should be a way of retrieving this name correctly instead.
-    push @{$homologues{ucfirst $genome_db_name}}, [ $target_member, $homology->description, $homology->species_tree_node(), $query_perc_id, $target_perc_id, $dnds_ratio, $homology->{_gene_tree_node_id}, $homology->dbID ];
+    push @{$homologues{ucfirst $genome_db_name}}, [ $target_member, $homology->description, $homology->species_tree_node->taxon_id, $query_perc_id, $target_perc_id, $dnds_ratio, $homology->{_gene_tree_node_id}, $homology->dbID ];
   }
-
-  $self->timer_push('homologies hacked', 6);
 
   @{$homologues{$_}} = sort { $classification->{$a->[2]} <=> $classification->{$b->[2]} } @{$homologues{$_}} for keys %homologues;
 
