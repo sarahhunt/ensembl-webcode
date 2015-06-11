@@ -29,3 +29,5 @@ sub __objecttype      { return $_[0]{'data'}{'_objecttype'};   }
 sub Obj               { return $_[0]{'data'}{'_object'};       } # Gets the underlying Ensembl object wrapped by the web object
 ## New accessor - to keep the webcode cleaner and more readable
 sub api_object        { return $_[0]{'data'}{'_object'};       } # Gets the underlying API object
+
+1;
