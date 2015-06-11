@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Gene;
+package EnsEMBL::Web::Role::Bio::Gene;
 
 ## Role to provide munging of data from a Bio::EnsEMBL::Gene object
 

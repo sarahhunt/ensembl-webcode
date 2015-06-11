@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Gene::Regulation;
+package EnsEMBL::Web::Role::Bio::Gene::Regulation;
 
 ### Regulation-specific data-munging for gene pages
 

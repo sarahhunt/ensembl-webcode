@@ -43,23 +43,23 @@ sub createObjectsInternal {
 
 sub get_roles {
   my $self = shift;
-  my $roles = ['Gene'];
+  my $roles = ['Bio', 'Bio::Gene'];
   my $action = $self->hub->action;
 
   if ($action =~ /Compara|Ortholog|Tree|Family/) {
-    push @$roles, 'Gene::Compara';
+    push @$roles, 'Bio::Gene::Compara';
   }
 
   if ($action =~ /Variation/) {
-    push @$roles, 'Gene::Variation';
+    push @$roles, 'Bio::Gene::Variation';
   }
   elsif ($action =~ /Phenotype/) {
-    push @$roles, 'Gene::Variation';
-    push @$roles, 'Gene::Compara';
+    push @$roles, 'Bio::Gene::Variation';
+    push @$roles, 'Bio::Gene::Compara';
   }
 
   if ($action =~ /Regulation/) {
-    push @$roles, 'Gene::Regulation';
+    push @$roles, 'Bio::Gene::Regulation';
   }
 
   return $roles;

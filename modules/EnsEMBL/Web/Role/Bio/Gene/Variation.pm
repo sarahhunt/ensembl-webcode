@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Gene::Variation;
+package EnsEMBL::Web::Role::Bio::Gene::Variation;
 
 ### Variation-specific data-munging for gene pages
 
