@@ -18,15 +18,8 @@ limitations under the License.
 
 package EnsEMBL::Web::Object;
 
-### NAME: EnsEMBL::Web::Object
-### Base class - wrapper around a Bio::EnsEMBL API object  
-
-### STATUS: At Risk
-### Contains a lot of functionality not directly related to
-### manipulation of the underlying API object 
-
-### DESCRIPTION
-### All Ensembl web data objects are derived from this class
+### Base class - wrapper around a Bio::EnsEMBL API object,  
+### with optional data-munging functionality provided by Roles
 
 use strict;
 
