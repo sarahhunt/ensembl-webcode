@@ -22,6 +22,8 @@ package EnsEMBL::Web::Role::Gene;
 
 use Role::Tiny;
 
+use EnsEMBL::Web::Utils::FormatText qw(date_format);
+
 ######### PAGE-RELATED METHODS ################
 
 sub can_export {
@@ -247,15 +249,6 @@ sub count_gene_supporting_evidence {
 
 ########## GENERAL GENE-MUNGING METHODS ##############
 
-sub date_format {
-## FIXME - a generic formatting method shouldn't be in an Object! 
-  my( $self, $time, $format ) = @_;
-  my( $d,$m,$y) = (localtime($time))[3,4,5];
-  my %S = ('d'=>sprintf('%02d',$d),'m'=>sprintf('%02d',$m+1),'y'=>$y+1900);
-  (my $res = $format ) =~s/%(\w)/$S{$1}/ge;
-  return $res;
-}
-
 sub get_Slice {
   my ($self, $context, $ori) = @_;
 
@@ -320,13 +313,13 @@ sub gene_type {
 sub mod_date {
   my $self = shift;
   my $time = $self->gene()->modified_date;
-  return $self->date_format( $time,'%d/%m/%y' );
+  return date_format( $time,'%d/%m/%y' );
 }
 
 sub created_date {
   my $self = shift;
   my $time = $self->gene()->created_date;
-  return $self->date_format( $time,'%d/%m/%y' );
+  return date_format( $time,'%d/%m/%y' );
 }
 
 sub get_author_name {
