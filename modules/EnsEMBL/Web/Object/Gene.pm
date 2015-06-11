@@ -20,13 +20,7 @@ package EnsEMBL::Web::Object::Gene;
 
 ### Wrapper around a Bio::EnsEMBL::Gene object
 
-use strict;
-
-use EnsEMBL::Web::Cache;
-
 use parent qw(EnsEMBL::Web::Object);
-
-our $MEMD = EnsEMBL::Web::Cache->new;
 
 ######## WRAPPERS AROUND API METHODS #############
 

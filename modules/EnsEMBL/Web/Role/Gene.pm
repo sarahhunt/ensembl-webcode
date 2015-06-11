@@ -88,9 +88,12 @@ sub availability {
   return $self->{'_availability'};
 }
 
+sub gxa_check { return; } ## implemented in widget plugin, to check for gene expression atlas availability
+
 sub counts {
   my ($self, $member, $pan_member) = @_;
   my $obj = $self->api_object;
+  my $MEMD = $self->hub->cache;
 
   return {} unless $obj->isa('Bio::EnsEMBL::Gene');
 
