@@ -30,6 +30,7 @@ use constant 'MAX_HIGHLIGHT_FILESIZE' => 1048576;  # (bytes) = 1Mb
 our @EXPORT = our @EXPORT_OK = qw(pretty_date style_by_filesize champion);
 
 sub pretty_date {
+  warn ">>> DEPRECATED METHOD - please use EnsEMBL::Web::Utils::TextFormat::pretty_date instead";
   my $timestamp = shift;
   my @date = localtime($timestamp);
   my @days = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
