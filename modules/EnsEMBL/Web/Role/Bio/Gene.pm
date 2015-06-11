@@ -359,6 +359,22 @@ sub get_similarity_hash {
   return $DBLINKS  || [];
 }
 
+sub get_compara_Member {
+  my $self       = shift;
+  my $compara_db = shift || 'compara';
+  my $cache_key  = "_compara_member_$compara_db";
+
+  if (!$self->{$cache_key}) {
+    my $compara_dba = $self->database($compara_db)              || return;
+    my $adaptor     = $compara_dba->get_adaptor('GeneMember')   || return;
+    my $member      = $adaptor->fetch_by_stable_id($self->stable_id);
+
+    $self->{$cache_key} = $member if $member;
+  }
+
+  return $self->{$cache_key};
+}
+
 sub get_database_matches {
   my $self = shift;
   my $dbpat = shift;
