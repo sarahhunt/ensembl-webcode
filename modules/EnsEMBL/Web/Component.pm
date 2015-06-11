@@ -710,7 +710,7 @@ sub _export_image {
   $image->{'export'} = 'iexport' . ($flag ? " $flag" : '');
 
   my ($format, $scale) = $hub->param('export') ? split /-/, $hub->param('export'), 2 : ('', 1);
-  $scale eq 1 if $scale <= 0;
+  $scale = 1 if $scale <= 0;
   
   my %formats = EnsEMBL::Web::Constants::EXPORT_FORMATS;
   
