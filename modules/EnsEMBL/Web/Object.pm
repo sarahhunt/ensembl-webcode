@@ -18,7 +18,8 @@ limitations under the License.
 
 package EnsEMBL::Web::Object;
 
-### Base class - wrapper around a Bio::EnsEMBL API object,  
+### Base class:
+### Model used by dynamic pages to fetch data from a database, 
 ### with optional data-munging functionality provided by Roles
 
 use strict;
@@ -48,6 +49,18 @@ sub new {
   return $self; 
 }
 
+sub hub               { return $_[0]{'data'}{'_hub'};          }
+sub caption           { return ''; }
+sub short_caption     { return ''; }
+sub type              { return $_[0]->hub->type;                  }
+sub action            { return $_[0]->hub->action;                }
+sub function          { return $_[0]->hub->function;              }
+sub script            { return $_[0]->hub->script;                }
+sub problem           { return shift->hub->problem(@_);           }
+sub param             { return shift->hub->param(@_);             }
+sub user              { return shift->hub->user(@_);              }
+
+## TODO - (re)move everything below this line when Role refactoring is complete
 sub counts            { return {};        }
 sub _counts           { return {};        } # Implemented in plugins
 sub availability      { return {};        }
@@ -60,21 +73,9 @@ sub __objecttype      { return $_[0]{'data'}{'_objecttype'};   }
 sub Obj               { return $_[0]{'data'}{'_object'};       } # Gets the underlying Ensembl object wrapped by the web object
 ## New accessor - to keep the webcode cleaner and more readable
 sub api_object        { return $_[0]{'data'}{'_object'};       } # Gets the underlying API object
-sub hub               { return $_[0]{'data'}{'_hub'};          }
-
-sub caption           { return ''; }
-sub short_caption     { return ''; }
-
 sub species           { return $_[0]->hub->species;               }
-sub type              { return $_[0]->hub->type;                  }
-sub action            { return $_[0]->hub->action;                }
-sub function          { return $_[0]->hub->function;              }
-sub script            { return $_[0]->hub->script;                }
 sub species_defs      { return shift->hub->species_defs(@_);      }
 sub species_path      { return shift->hub->species_path(@_);      }
-sub problem           { return shift->hub->problem(@_);           }
-sub param             { return shift->hub->param(@_);             }
-sub user              { return shift->hub->user(@_);              }
 sub database          { return shift->hub->database(@_);          }
 sub get_adaptor       { return shift->hub->get_adaptor(@_);       }
 sub timer_push        { return shift->hub->timer_push(@_);        }
