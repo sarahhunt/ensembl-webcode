@@ -604,12 +604,13 @@ sub modal_form {
   $params->{'enctype'}  = 'multipart/form-data' if !$self->renderer->{'_modal_dialog_'};
 
   if ($options->{'wizard'}) {
+    warn ">>> I AINT'NT DEAD!";
     my $species = $hub->type eq 'UserData' ? $hub->data_species : $hub->species;
-    
+
     $params->{'action'}  = $hub->species_path($species) if $species;
     $params->{'action'} .= sprintf '/%s/Wizard', $hub->type;
     my @tracks = $hub->param('_backtrack');
-    $params->{'backtrack'} = \@tracks if scalar @tracks; 
+    $params->{'backtrack'} = \@tracks if scalar @tracks;
   }
 
   return EnsEMBL::Web::Form::ModalForm->new($params);
