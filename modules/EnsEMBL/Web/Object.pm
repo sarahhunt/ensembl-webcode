@@ -41,9 +41,10 @@ sub new {
   return $self; 
 }
 
-sub hub               { return $_[0]{'data'}{'_hub'};          }
+sub hub               { return $_[0]{'data'}{'_hub'};             }
 sub caption           { return ''; }
 sub short_caption     { return ''; }
+sub api_type          { return $_[0]{'data'}{'_api'};             }
 sub type              { return $_[0]->hub->type;                  }
 sub action            { return $_[0]->hub->action;                }
 sub function          { return $_[0]->hub->function;              }
