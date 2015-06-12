@@ -22,6 +22,14 @@ use strict;
 
 use base qw(EnsEMBL::Web::Component::Gene::VariationImage);
 
+sub _init {
+### Doesn't inherit from Component::Gene, so we need to manually add roles 
+  my $self = shift;
+  $self->SUPER::_init(@_);
+  my $roles = [qw(Bio Bio::Gene Bio::Gene::Variation)];
+  $self->set_object_roles($roles);
+}
+
 sub content { return $_[0]->SUPER::content(1, 'gene_splice'); }
 
 1;

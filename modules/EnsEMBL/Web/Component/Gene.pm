@@ -30,7 +30,7 @@ sub object_roles {
     $_ = 'Bio::'.$_;
   }
   unshift @$roles, qw(Bio Bio::Gene);
-  $self->SUPER::set_object_roles($roles);
+  $self->set_object_roles($roles);
 }
 
 
