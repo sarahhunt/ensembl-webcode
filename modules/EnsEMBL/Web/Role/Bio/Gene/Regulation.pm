@@ -60,21 +60,21 @@ sub get_feature_view_link {
 sub get_extended_reg_region_slice {
   my $self = shift;
   ## retrieve default slice
-  my $object_slice = $self->Obj->feature_Slice;
+  my $object_slice = $self->api_object->feature_Slice;
      $object_slice = $object_slice->invert if $object_slice->strand < 1; ## Put back onto correct strand!
 
 
   my $fg_db = $self->get_fg_db;
   my $fg_slice_adaptor = $fg_db->get_SliceAdaptor;
   my $fsets = $self->feature_sets;
-  my $gr_slice = $fg_slice_adaptor->fetch_by_Gene_FeatureSets($self->Obj, $fsets);
+  my $gr_slice = $fg_slice_adaptor->fetch_by_Gene_FeatureSets($self->api_object, $fsets);
   $gr_slice = $gr_slice->invert if $gr_slice->strand < 1; ## Put back onto correct strand!
 
 
   ## Now we need to extend the slice!! Default is to add 2kb to either end of slice, if gene_reg slice is
   ## extends more than this use the values returned from this
-  my $start = $self->Obj->start;
-  my $end   = $self->Obj->end;
+  my $start = $self->api_object->start;
+  my $end   = $self->api_object->end;
 
   my $gr_start = $gr_slice->start;
   my $gr_end = $gr_slice->end;

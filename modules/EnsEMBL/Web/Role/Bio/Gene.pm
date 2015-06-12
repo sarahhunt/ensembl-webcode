@@ -252,7 +252,7 @@ sub count_gene_supporting_evidence {
 sub get_Slice {
   my ($self, $context, $ori) = @_;
 
-  my $slice = $self->Obj->feature_Slice;
+  my $slice = $self->api_object->feature_Slice;
   $context  = $slice->length * $1 / 100 if $context =~ /(\d+)%/;
   $slice    = $slice->invert if $ori && $slice->strand != $ori;
 
@@ -278,19 +278,19 @@ sub gene_type {
   my $db = $self->get_db;
   my $type = '';
   if( $db eq 'core' ){
-    $type = ucfirst(lc($self->Obj->status))." ".$self->Obj->biotype;
+    $type = ucfirst(lc($self->api_object->status))." ".$self->api_object->biotype;
     $type =~ s/_/ /;
     $type ||= $self->db_type;
   } elsif ($db =~ /vega/) {
-    my $biotype = ($self->Obj->biotype eq 'tec') ? uc($self->Obj->biotype) : ucfirst(lc($self->Obj->biotype));
-    $type = ucfirst(lc($self->Obj->status))." $biotype";
+    my $biotype = ($self->api_object->biotype eq 'tec') ? uc($self->api_object->biotype) : ucfirst(lc($self->api_object->biotype));
+    $type = ucfirst(lc($self->api_object->status))." $biotype";
     $type =~ s/_/ /g;
     $type =~ s/unknown //i;
     return $type;
   } else {
     $type = $self->logic_name;
     if ($type =~/^(proj|assembly_patch)/ ){
-      $type = ucfirst(lc($self->Obj->status))." ".$self->Obj->biotype;
+      $type = ucfirst(lc($self->api_object->status))." ".$self->api_object->biotype;
     }
     $type =~ s/_/ /g;
     $type =~ s/^ccds/CCDS/;
@@ -314,7 +314,7 @@ sub created_date {
 
 sub get_author_name {
   my $self = shift;
-  my $attribs = $self->Obj->get_all_Attributes('author');
+  my $attribs = $self->api_object->get_all_Attributes('author');
   if (@$attribs) {
     return $attribs->[0]->value;
   } else {
@@ -324,14 +324,14 @@ sub get_author_name {
 
 sub retrieve_remarks {
   my $self = shift;
-  my @remarks = grep {$_ ne 'EnsEMBL merge exception'} map { $_->value } @{ $self->Obj->get_all_Attributes('remark') };
+  my @remarks = grep {$_ ne 'EnsEMBL merge exception'} map { $_->value } @{ $self->api_object->get_all_Attributes('remark') };
   return \@remarks;
 }
 
 sub vega_projection {
   my $self = shift;
   my $alt_assembly = shift;
-  my $alt_projection = $self->Obj->feature_Slice->project('chromosome', $alt_assembly);
+  my $alt_projection = $self->api_object->feature_Slice->project('chromosome', $alt_assembly);
   my @alt_slices = ();
   foreach my $seg (@{ $alt_projection }) {
     my $alt_slice = $seg->to_Slice;
@@ -342,7 +342,7 @@ sub vega_projection {
 
 sub get_similarity_hash {
   my ($self, $recurse, $obj) = @_;
-  $obj ||= $self->Obj;
+  $obj ||= $self->api_object;
   my $DBLINKS;
   eval { $DBLINKS = $obj->get_all_DBEntries; };
   warn ("SIMILARITY_MATCHES Error on retrieving gene DB links $@") if ($@);
@@ -369,14 +369,14 @@ sub get_database_matches {
   my $self = shift;
   my $dbpat = shift;
   my @DBLINKS;
-  eval { @DBLINKS = @{$self->Obj->get_all_DBLinks($dbpat)};};
+  eval { @DBLINKS = @{$self->api_object->get_all_DBLinks($dbpat)};};
   return \@DBLINKS  || [];
 }
 
 sub get_alternative_locations {
   my $self = shift;
   my @alt_locs = map { [ $_->slice->seq_region_name, $_->start, $_->end, $_->slice->coord_system->name ] }
-     @{$self->Obj->get_all_alt_locations};
+     @{$self->api_object->get_all_alt_locations};
   return \@alt_locs;
 }
 
@@ -395,7 +395,7 @@ sub get_rnaseq_tracks {
 sub insdc_accession {
   my $self = shift;
 
-  my $csv = $self->Obj->slice->coord_system->version;
+  my $csv = $self->api_object->slice->coord_system->version;
   my $csa = Bio::EnsEMBL::Registry->get_adaptor($self->species,'core',
                                                 'CoordSystem');
   # 0 = look on chromosome
@@ -404,13 +404,13 @@ sub insdc_accession {
   for(my $method = 0;$method < 2;$method++) {
     my $slice;
     if($method == 0) {
-      $slice = $self->Obj->slice->sub_Slice($self->Obj->start,
-                                            $self->Obj->end);
+      $slice = $self->api_object->slice->sub_Slice($self->api_object->start,
+                                            $self->api_object->end);
     } elsif($method == 1) {
       # Try to project to supercontig (aka scaffold)
       foreach my $level (qw(supercontig scaffold)) {
         next unless $csa->fetch_by_name($level,$csv);
-        my $gsa = $self->Obj->project($level,$csv);
+        my $gsa = $self->api_object->project($level,$csv);
         if(@$gsa==1) {
           $slice = $gsa->[0]->to_Slice;
           last;
@@ -448,7 +448,7 @@ sub get_gene_supporting_evidence {
   #get supporting evidence for the gene: transcript_supporting_features support the
   #whole transcript or the translation, supporting_features provide depth the the evidence
   my $self    = shift;
-  my $obj     = $self->Obj;
+  my $obj     = $self->api_object;
   my $species = $self->species;
   my $ln      = $self->logic_name;
   my $dbentry_adap = Bio::EnsEMBL::Registry->get_adaptor($species, "core", "DBEntry");

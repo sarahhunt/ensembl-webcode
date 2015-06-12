@@ -53,7 +53,7 @@ sub store_TransformedTranscripts {
   my $offset = $self->__data->{'slices'}{'transcripts'}->[1]->start -1;
   foreach my $trans_obj ( @{$self->get_all_transcripts} ) {
     next if $focus_transcript && $trans_obj->stable_id ne $focus_transcript;
-    my $transcript = $trans_obj->Obj;
+    my $transcript = $trans_obj->api_object;
     my ($raw_coding_start,$coding_start);
     if (defined( $transcript->coding_region_start )) {
       $raw_coding_start = $transcript->coding_region_start;
@@ -261,7 +261,7 @@ sub store_TransformedDomains {
   foreach my $trans_obj ( @{$self->get_all_transcripts} ) {
     next if $focus_transcript && $trans_obj->stable_id ne $focus_transcript;
     my %seen;
-    my $transcript = $trans_obj->Obj;
+    my $transcript = $trans_obj->api_object;
     next unless $transcript->translation;
     foreach my $pf ( @{$transcript->translation->get_all_ProteinFeatures( lc($key) )} ) {
 ## rach entry is an arry containing the actual pfam hit, and mapped start and end co-ordinates

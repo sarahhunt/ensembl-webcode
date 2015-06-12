@@ -69,7 +69,7 @@ sub get_homology_matches {
 
     return $self->{'homology_matches'}{$key} = {} unless keys %$homologues;
 
-    my $gene         = $self->Obj;
+    my $gene         = $self->api_object;
     my $geneid       = $gene->stable_id;
     my $adaptor_call = $self->param('gene_adaptor') || 'get_GeneAdaptor';
     my %homology_list;
@@ -202,7 +202,7 @@ sub get_homologue_alignments {
   my $msa;
 
   if ($database) {
-    my $member  = $database->get_GeneMemberAdaptor->fetch_by_stable_id($self->Obj->stable_id);
+    my $member  = $database->get_GeneMemberAdaptor->fetch_by_stable_id($self->api_object->stable_id);
     my $tree    = $database->get_GeneTreeAdaptor->fetch_default_for_Member($member);
     my @params  = ($member, 'ENSEMBL_ORTHOLOGUES');
     my $species = [];
