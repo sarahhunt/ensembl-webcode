@@ -86,12 +86,8 @@ sub init {
   my $self          = shift;
   my $controller    = shift;    
   my $object        = $controller->object;
-  
-  my $object_type   = $object->type;
-  if ($object_type eq 'Gene') { 
-    my @roles         = ('EnsEMBL::Web::Role::Bio', "EnsEMBL::Web::Role::Bio::$object_type");
-    Role::Tiny->apply_roles_to_object($object, @roles);
-  }
+
+  $self->apply_roles_to_object;  
 
   my $hub           = $controller->hub;
   my $configuration = $controller->configuration;

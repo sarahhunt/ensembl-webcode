@@ -31,6 +31,10 @@ package EnsEMBL::Web::Root;
 
 use strict;
 
+## Stop Role::Tiny from spamming logs with pointless warnings
+no warnings::anywhere qw(uninitialized);
+
+use Role::Tiny;
 use File::Path            qw(mkpath);
 use File::Spec::Functions qw(splitpath);
 use List::MoreUtils       qw(first_index);
@@ -428,6 +432,18 @@ sub new_bio_object {
   }
   else {
     return $class->new($hub, $api_object);
+  }
+}
+
+sub apply_roles_to_object {
+  my ($self, $object) = @_;
+  return unless $object;
+
+  ## TODO - Extend this to other Objects
+  my $object_type   = $object->type;
+  if ($object_type eq 'Gene') {
+    my @roles         = ('EnsEMBL::Web::Role::Bio', "EnsEMBL::Web::Role::Bio::$object_type");
+    Role::Tiny->apply_roles_to_object($object, @roles);
   }
 }
 

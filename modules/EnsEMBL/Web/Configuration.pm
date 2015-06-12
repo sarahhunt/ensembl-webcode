@@ -31,13 +31,16 @@ sub new {
     page    => $page,
     hub     => $hub,
     builder => $builder,
-    object  => $builder->object,
     _data   => $data,
     cl      => {}
   };
   
   bless $self, $class;
-  
+
+  my $object        = $builder->object;
+  $self->apply_roles_to_object($object);
+  $self->{'object'} = $object;
+
   $self->init;
   $self->add_external_browsers;
   $self->modify_tree;
@@ -91,6 +94,8 @@ sub init {
     $self->populate_tree; # If no user + session tree found, build one
     $cache->set($cache_key, $self->{'_data'}{'tree'}, undef, 'TREE') if $cache && $cache_key; # Cache default tree
   }
+  
+  $self->{'availability'} = $self->object->availability;
   
   $self->user_populate_tree if $user_tree;
 }
@@ -155,8 +160,6 @@ sub tree_cache_key {
 
 sub get_valid_action {
   my ($self, $action, $function,$assume_valid) = @_;
-  
-  return $action if $action eq 'Wizard';
   
   my $object   = $self->object;
   my $hub      = $self->hub;
