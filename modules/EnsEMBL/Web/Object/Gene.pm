@@ -22,6 +22,12 @@ package EnsEMBL::Web::Object::Gene;
 
 use parent qw(EnsEMBL::Web::Object);
 
+sub init {
+### Tell the rest of the code where we're getting data from
+  my $self = shift;
+  $self->{'_api'} = 'Perl';
+}
+
 ######## WRAPPERS AROUND API METHODS #############
 
 sub gene                        { return $_[0]->api_object;             }

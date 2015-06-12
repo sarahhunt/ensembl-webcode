@@ -439,9 +439,9 @@ sub apply_roles_to_object {
   my ($self, $object) = @_;
   return unless $object;
 
-  ## TODO - Extend this to other Objects
-  my $object_type   = $object->type;
-  if ($object_type eq 'Gene') {
+  my $api_type      = $object->api_type;
+  if ($api_type && $api_type eq 'Perl') {
+    my $object_type   = $object->type;
     my @roles         = ('EnsEMBL::Web::Role::Bio', "EnsEMBL::Web::Role::Bio::$object_type");
     Role::Tiny->apply_roles_to_object($object, @roles);
   }

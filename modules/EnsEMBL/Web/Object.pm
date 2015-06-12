@@ -37,6 +37,7 @@ sub new {
 
   my $self = { data => $data };
   bless $self, $class;
+  $self->init;
   
   return $self; 
 }
@@ -44,7 +45,7 @@ sub new {
 sub hub               { return $_[0]{'data'}{'_hub'};             }
 sub caption           { return ''; }
 sub short_caption     { return ''; }
-sub api_type          { return $_[0]{'data'}{'_api'};             }
+sub api_type          { return $_[0]{'_api'};                     }
 sub type              { return $_[0]->hub->type;                  }
 sub action            { return $_[0]->hub->action;                }
 sub function          { return $_[0]->hub->function;              }
@@ -52,6 +53,7 @@ sub script            { return $_[0]->hub->script;                }
 sub problem           { return shift->hub->problem(@_);           }
 sub param             { return shift->hub->param(@_);             }
 sub user              { return shift->hub->user(@_);              }
+sub init              { return undef; }
 
 ## TODO - (re)move everything below this line when Role refactoring is complete
 sub counts            { return {};        }
