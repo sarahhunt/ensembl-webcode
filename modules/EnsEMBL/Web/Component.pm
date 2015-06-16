@@ -235,10 +235,10 @@ sub apply_object_roles {
   my $self = shift;
   my @roles;
   foreach (@{$self->get_object_roles}) {
-    push @roles, 'EnsEMBL::Web::Role::'.$_;
+    push @roles, 'EnsEMBL::Web::Role::'.$_ if $_;
   }
   ## Don't try to apply non-existent roles, or Role::Tiny will complain
-  if (@roles) {
+  if (scalar @roles) {
     Role::Tiny->apply_roles_to_object($self->object, @roles);
   }
 }
