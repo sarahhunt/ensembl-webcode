@@ -51,8 +51,8 @@ sub init {
   );
  
   $self->add_tracks('sequence',
-    [ 'logo',       'Logo',            'seq_logo', { display => 'normal', strand => 'b', description => 'Track showing sequence logo', }],
     [ 'seq',       'Sequence',            'sequence', { display => 'normal', strand => 'b', description => 'Track showing reference sequence',       colourset => 'seq',      threshold => 1,   depth => 1      }],
+    [ 'logo',       'Logo',            'seq_logo', { display => 'normal', strand => 'b', description => 'Track showing sequence logo', }],
   );
  
   $self->load_tracks;
