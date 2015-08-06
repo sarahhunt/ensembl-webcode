@@ -122,21 +122,36 @@ sub upload {
   ## Has the user specified a format?
   if ($f_param) {
     $format = $f_param;
-  } elsif ($method ne 'text') {
-    ## Try to guess the format from the extension
-    my @parts       = split('\.', $filename);
-    my $ext         = $parts[-1] =~ /gz|zip/i ? $parts[-2] : $parts[-1];
-    my $format_info = $hub->species_defs->multi_val('DATA_FORMAT_INFO');
-    my $extensions;
+  } 
 
-    foreach (@{$hub->species_defs->multi_val('UPLOAD_FILE_FORMATS')}) {
-      $format = uc $ext if $format_info->{lc($_)}{'ext'} =~ /$ext/i;
+  ## Get the compression algorithm, based on the file extension
+  ## and, if necessary, try to guess the format from the extension
+  if ($method ne 'text') {
+    my @parts = split('\.', $filename);
+    my $last  = $parts[-1];
+    my $extension;
+    if ($last =~ /(gz|zip|bz)/i) {
+      $args{'compression'}  = lc $1;
+      $extension            = $parts[-2];
+      ## Save files in uncompressed form
+      $args{'uncompress'} = 1;
+    }
+    else {
+      $extension = $last;
+    }
+    $args{'extension'} = $extension;
+
+    ## This block is unlikely to be called, as the interface _should_ pass a format
+    if (!$format) {
+      my $format_info = $hub->species_defs->multi_val('DATA_FORMAT_INFO');
+
+      foreach (@{$hub->species_defs->multi_val('UPLOAD_FILE_FORMATS')}) {
+        $format = uc $extension if $format_info->{lc($_)}{'ext'} =~ /$extension/i;
+      }
     }
   }
  
   $args{'timestamp_name'}  = 1;
-  ## Save files in uncompressed form
-  $args{'uncompress'} = 1;
 
   if ($method eq 'url') {
     $args{'file'}          = $hub->param($method);
@@ -161,7 +176,7 @@ sub upload {
 
   ## Add upload to session
   if ($result->{'error'}) {
-    $error = $result->{'error'};
+    $error = $result->{'error'}[0];
   }
   else {
     my $response = $self->write($result->{'content'});
@@ -200,7 +215,7 @@ sub upload {
       $self->{'code'} = $code;
     }
     else {
-      $error = $response->{'error'};
+      $error = $response->{'error'}[0];
     }
   }
   return $error;
@@ -235,5 +250,34 @@ sub write_tarball {
   return $result;
 }
 
+sub build_tracks_from_file {
+### Parse a file and convert data into drawable objects
+  my $self = shift;
+  my $tracks = {};
+
+  my $class = 'EnsEMBL::Web::IOWrapper::'.uc($self->format);
+  if (EnsEMBL::Root::dynamic_use($class)) {
+    my $wrapper = $class->new($self);
+    my $parser = $wrapper->parser;
+    while ($parser->next) {
+      my $key = $parser->get_metadata_value('name') || 'default';
+      if ($parser->is_metadata) {
+        $tracks->{$key}{'config'}{'description'} = $parser->get_metadata_value('description') unless $tracks->{$key}{'config'}{'description'};
+      }
+      else {
+        my $feature_array = $tracks->{$key}{'features'} || [];
+
+        ## Create feature
+        my $feature = $wrapper->get_hash;
+        next unless keys %$feature;
+
+        ## Add to track hash
+        push @$feature_array, $feature;
+        $tracks->{$key}{'features'} = $feature_array unless $tracks->{$key}{'features'};
+      }
+    }
+  }
+  return $tracks;
+}
 1;
 

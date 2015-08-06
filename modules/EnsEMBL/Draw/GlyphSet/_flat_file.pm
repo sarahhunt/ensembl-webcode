@@ -27,9 +27,12 @@ use List::Util qw(reduce);
 
 use EnsEMBL::Web::Text::FeatureParser;
 use EnsEMBL::Web::File::User;
+use EnsEMBL::Web::Utils::FormatText qw(add_links);
 use Bio::EnsEMBL::Variation::Utils::Constants;
 
 use base qw(EnsEMBL::Draw::GlyphSet::_alignment EnsEMBL::Draw::GlyphSet_wiggle_and_block);
+
+sub wiggle_subtitle { join(', ',@{$_[0]->{'subtitle'}||[]}); }
 
 sub feature_group { my ($self, $f) = @_; return $f->id; }
 sub feature_label { my ($self, $f) = @_; return $f->id; }
@@ -38,11 +41,16 @@ sub draw_features {
   my ($self, $wiggle) = @_; 
   my %data = $self->features;
   
-  return 0 unless keys %data;
-  
+  ## Value to drop into error message
+  return $self->my_config('format').' features' unless keys %data;
+ 
+  $self->{'subtitle'} = []; 
   if ($wiggle) {
+    my $first = 1;
     foreach my $key ($self->sort_features_by_priority(%data)) {
-      my ($features, $config)     = @{$data{$key}};
+      $self->draw_space_glyph() unless $first;
+      $first = 0;
+      my ($features, $config)     = @{$data{$key}||[]};
       my $graph_type              = ($config->{'useScore'} && $config->{'useScore'} == 4) || ($config->{'graphType'} && $config->{'graphType'} eq 'points') ? 'points' : 'bar';
       my ($min_score, $max_score) = split ':', $config->{'viewLimits'};
       
@@ -54,14 +62,15 @@ sub draw_features {
         max_score    => $max_score, 
         score_colour => $config->{'color'},
         axis_colour  => 'black',
-        description  => $config->{'description'},
         graph_type   => $graph_type,
         use_feature_colours => (lc($config->{'itemRgb'}||'') eq 'on'),
       });
+      my $subtitle = $config->{'name'} || $config->{'description'};
+      push @{$self->{'subtitle'}},$subtitle;
     }
   }
   
-  return 1;
+  return 0;
 }
 
 sub features {
@@ -98,20 +107,28 @@ sub features {
 
     my $file = EnsEMBL::Web::File::User->new(%args);
 
-    return $self->errorTrack(sprintf 'The file %s could not be found', $self->my_config('caption')) if !$file->exists;
-
     my $response = $file->read;
 
     if (my $data = $response->{'content'}) {
       $parser->parse($data, $self->my_config('format'));
     } else {
-      warn "!!! $response->{'error'}";
+      return $self->errorTrack(sprintf 'Could not read file %s', $self->my_config('caption'));
+      warn "!!! ERROR READING FILE: ".$response->{'error'}[0];
     }
   } 
+
+  my $key = $self->{'hover_label_class'}; 
+  my $hover_label = $self->{'config'}->{'hover_labels'}{$key};
 
   ## Now we translate all the features to their rightful co-ordinates
   while (my ($key, $T) = each (%{$parser->{'tracks'}})) {
     $_->map($container) for @{$T->{'features'}};
+
+    my $description = $T->{'config'}{'description'};
+    if ($description) {
+      $description = add_links($description);
+      $hover_label->{'extra_desc'} = $description;
+    }
  
     ## Set track depth a bit higher if there are lots of user features
     $T->{'config'}{'dep'} = scalar @{$T->{'features'}} > 20 ? 20 : scalar @{$T->{'features'}};
@@ -175,7 +192,6 @@ sub features {
 
     $results{$key} = [$features, $T->{'config'}];
   }
-
   return %results;
 }
 

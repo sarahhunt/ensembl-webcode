@@ -60,17 +60,27 @@ sub render {
   }
   $html .= $blog if $blog;
 
-  return if ($species_defs->ENSEMBL_SITETYPE eq 'Archive');
+  return $html if ($species_defs->ENSEMBL_SUBTYPE eq 'Archive');
+  
+  $html .= $self->show_twitter();
+
+  return $html;
+}
+
+sub show_twitter {
+  my $self          = shift;
+  my $species_defs  = $self->hub->species_defs;
+  my $twitter_html  = '';
 
   my $twitter_user = $species_defs->ENSEMBL_TWITTER_ACCOUNT;
   my $widget_id    = $species_defs->TWITTER_FEED_WIDGET_ID;
   if ($twitter_user && $widget_id) {
-    $html .= sprintf(qq(<a class="twitter-timeline" href="https://twitter.com/%s" height="400" data-widget-id="%s">Recent tweets from @%s</a>
-<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+"://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>), 
+    $twitter_html = sprintf(qq(<a class="twitter-timeline" href="https://twitter.com/%s" height="400" data-widget-id="%s">Recent tweets from @%s</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+"://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>),
                 $twitter_user, $widget_id, $twitter_user);
   }
 
-  return $html;
+  return qq(<div class="homepage-twitter">$twitter_html</div>);
 }
 
 sub show_headlines {
@@ -166,7 +176,7 @@ sub _include_blog {
     $html .= qq(<p>Sorry, no feed is available from our blog at the moment</p>);
   }
 
-  $html .= qq(<p style="text-align:right"><a href="$blog_url">Go to Ensembl blog &rarr;</a></p>);
+  $html .= qq(<p style="text-align:right"><a href="$blog_url">Go to Ensembl blog</a></p>);
 
   return $html;
 

@@ -29,8 +29,10 @@ use EnsEMBL::Web::DBSQL::DBConnection;
 
 use base qw(EnsEMBL::Draw::GlyphSet::_alignment EnsEMBL::Draw::GlyphSet_wiggle_and_block);
 
-sub feature_group { my ($self, $f) = @_; return $f->id;       }
-sub feature_label { my ($self, $f) = @_; return $f->hseqname; }
+sub feature_group { my ($self, $f) = @_; return $f->display_id; }
+sub feature_label { my ($self, $f) = @_; return $f->hseqname;   }
+
+sub wiggle_subtitle { return $_[0]->my_config('description'); }
 
 sub draw_features {
   my ($self, $wiggle) = @_;
@@ -39,8 +41,6 @@ sub draw_features {
   return 0 unless keys %data;
   
   if ($wiggle) {
-    my $description = $self->my_config('description');
-    
     foreach my $key ($self->sort_features_by_priority(%data)) {
       my ($features, $config)     = @{$data{$key}};
       my $graph_type              = ($config->{'useScore'} && $config->{'useScore'} == 4) || ($config->{'graphType'} && $config->{'graphType'} eq 'points') ? 'points' : 'bar';
@@ -54,7 +54,6 @@ sub draw_features {
         max_score    => $max_score,
         score_colour => $config->{'color'},
         axis_colour  => 'black',
-        description  => $description,
         graph_type   => $graph_type,
       });
     }
@@ -93,7 +92,7 @@ sub feature_title {
   my $title       = sprintf(
     '%s: %s; Start: %d; End: %d; Strand: %s',
     $self->my_config('caption'),
-    $f->id,
+    $f->display_id,
     $f->seq_region_start,
     $f->seq_region_end,
     $strand_name[$f->seq_region_strand]

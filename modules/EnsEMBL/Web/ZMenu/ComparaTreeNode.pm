@@ -39,9 +39,11 @@ sub content {
   my $node_id         = $hub->param('node')                   || die 'No node value in params';
   my $node            = $tree->find_node_by_node_id($node_id);
   
+  if (!$node and $tree->tree->{'_supertree'}) {
+    $node = $tree->tree->{'_supertree'}->find_node_by_node_id($node_id);
+  }
   unless ($node) {
-    $tree = $tree->tree->{'_supertree'};
-    $node = $tree->find_node_by_node_id($node_id);
+    $node = $tree->adaptor->fetch_node_by_node_id($node_id);
     die "No node_id $node_id in ProteinTree" unless $node;
   }
   
@@ -352,29 +354,36 @@ sub content {
         order => 13
       });
     }
+  
+    ## Build URL for data export 
+    my $gene_name;
+    my $gene = $self->object->Obj;
+    my $dxr    = $gene->can('display_xref') ? $gene->display_xref : undef;
+
+    my $gene_name = $hub->species eq 'Multi' ? $hub->param('gt') : $dxr ? $dxr->display_id : $gene->stable_id;
     
-    # Subtree dumps
-    my ($url_align, $url_tree) = $self->dump_tree_as_text($node);
-    
+    my $params = {
+                'type'      => 'DataExport',
+                'action'    => 'GeneTree',
+                'data_type' => 'Gene',
+                'component' => 'ComparaTree',
+                'gene_name' => $gene_name,
+                'align'     => 'tree',
+                'node'      => $node_id,
+                };
+
     $self->add_entry({
-      type     => 'View Sub-tree',
-      label    => 'Alignment: FASTA',
-      link     => $url_align,
-      external => 1 ,
-      order    => 14
-    });
-    
-    $self->add_entry({
-      type     => 'View Sub-tree',
-      label    => 'Tree: New Hampshire',
-      link     => $url_tree,
-      external => 1,
-      order    => 15
-    });
-    
+      type        => 'Export sub-tree',
+      label       => 'Tree or Alignment',
+      link        => $hub->url($params),
+      link_class  => 'modal_link',
+      order       => 14,
+    }); 
+
     # Jalview
+    my ($url_align, $url_tree) = $self->dump_tree_as_text($node);
     $self->add_entry({
-      type       => 'View Sub-tree',
+      type       => 'View sub-tree',
       label      => 'Expand for Jalview',
       link_class => 'expand',
       order      => 16,

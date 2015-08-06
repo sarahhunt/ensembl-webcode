@@ -72,17 +72,22 @@ sub new {
 
   my $input_drivers = ['IO'];
   my $absolute = 0;
+  my $source = 'file';
   if ($args{'file'} && $args{'file'} =~ /^[http|ftp]/) {
     $absolute = 1;
+    $source = 'url';
     $input_drivers = ['URL'];
   }
   elsif ($args{'upload'}) {
     $absolute = 1;
   }
 
+  ## Note that we always store format internally as lowercase
   my $self = {
               'hub'             => $args{'hub'},
+              'format'          => lc($args{'format'}),
               'absolute'        => $absolute,
+              'source'          => $source,
               'base_dir'        => $args{'base_dir'} || 'user',
               'base_extra'      => $args{'base_extra'},
               'input_drivers'   => $args{'input_drivers'} || $input_drivers, 
@@ -102,6 +107,11 @@ sub init {
   my ($self, %args) = @_;
   my $read_path = $args{'file'};
   my $bare_name;
+
+  ## Override default input drivers if reading from URL
+  if ($read_path =~ /^[http|ftp]/) {
+    $self->{'input_drivers'} = ['URL'];
+  }
 
   ## Existing file or user upload
   if ($read_path) {
@@ -364,10 +374,29 @@ sub code {
   return $self->{'code'};
 }
 
+sub source {
+### a
+  my $self = shift;
+  return $self->{'source'};
+}
+
 sub error {
 ### a
   my $self = shift;
   return $self->{'error'};
+}
+
+sub set_format {
+### a
+  my ($self, $format) = @_;
+  $self->{'format'} = $format;
+  return $self->{'format'};
+}
+
+sub get_format {
+### a
+  my $self = shift;
+  return $self->{'format'};
 }
 
 sub set_timestamp {
@@ -501,7 +530,6 @@ sub read {
     my $args = {
                 'hub'         => $self->hub,
                 'nice'        => 1,
-                'compression' => 1
                 };
 
     eval {
@@ -557,7 +585,29 @@ sub write_line {
     my $args = {
                 'hub'     => $self->hub,
                 'nice'    => 1,
-                'content' => $content,
+                'lines'   => $content,
+                };
+
+    eval {
+      no strict 'refs';
+      $result = &$method($self, $args);
+    };
+    last unless $result->{'error'};
+  }
+  return $result;
+}
+
+sub touch {
+### Touch file, i.e. create it (empty) if it doesn't exist
+### @return Hashref
+  my $self = shift;
+  my $result = {};
+ 
+  foreach (@{$self->{'output_drivers'}}) {
+    my $method = 'EnsEMBL::Web::File::Utils::'.$_.'::touch_file'; 
+    my $args = {
+                'hub'     => $self->hub,
+                'nice'    => 1,
                 };
 
     eval {

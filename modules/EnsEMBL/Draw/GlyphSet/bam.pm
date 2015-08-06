@@ -27,8 +27,8 @@ use base qw(EnsEMBL::Draw::GlyphSet::sequence);
 
 use EnsEMBL::Draw::GlyphSet;
 
-use Bio::EnsEMBL::ExternalData::BAM::BAMAdaptor;
 use Bio::EnsEMBL::DBSQL::DataFileAdaptor;
+use Bio::EnsEMBL::IO::Adaptor::BAMAdaptor;
 use Data::Dumper;
 
 sub errorTrack {
@@ -119,7 +119,7 @@ sub bam_adaptor {
       my $region = $self->{'container'}->seq_region_name;
       $url =~ s/\#\#\#CHR\#\#\#/$region/g;
     }
-    $self->{_cache}->{_bam_adaptor} ||= Bio::EnsEMBL::ExternalData::BAM::BAMAdaptor->new($url);
+    $self->{_cache}->{_bam_adaptor} ||= Bio::EnsEMBL::IO::Adaptor::BAMAdaptor->new($url);
   }
   else { ## Local bam file
     my $config    = $self->{'config'};
@@ -449,9 +449,18 @@ sub render_coverage {
 #  return \@filtered;
 #}
 
+# Calculate a machine-unique name for the C for safe copyability
+use Digest::MD5 qw(md5_hex);
+our $cbuild_dir;
+BEGIN {
+  my $name = $SiteDefs::ENSEMBL_COHORT;
+  $cbuild_dir = "$SiteDefs::ENSEMBL_WEBROOT/.cbuild-".md5_hex($name);
+  mkdir $cbuild_dir unless -e $cbuild_dir;
+};
+
 use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR",
                           LIBS => "-L$SiteDefs::SAMTOOLS_DIR -lbam",
-                          DIRECTORY => "$SiteDefs::ENSEMBL_WEBROOT/cbuild";
+                          DIRECTORY => $cbuild_dir;
 
 ##    Inline->init;
 #

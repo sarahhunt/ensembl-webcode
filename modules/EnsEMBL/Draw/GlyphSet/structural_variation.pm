@@ -334,7 +334,9 @@ sub href {
     type => 'StructuralVariation',
     sv   => $f->variation_name,
     svf  => $f->dbID,
-    vdb  => $self->my_config('db')
+    vdb  => $self->my_config('db'),
+    v    => undef,
+    vf   => undef,
   });
 }
 
@@ -367,5 +369,7 @@ sub highlight {
     absolutey    => 1,
   }));
 }
+
+sub supports_subtitles { return 1; }
 
 1;

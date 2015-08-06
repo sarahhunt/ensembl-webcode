@@ -165,7 +165,7 @@ sub assembly_text {
   );
   
   ## Insert dropdown list of other assemblies
-  if (my $assembly_dropdown = $self->assembly_dropodown) {
+  if (my $assembly_dropdown = $self->assembly_dropdown) {
     $html .= '<h3 class="light top-margin">Other assemblies</h3>'.$assembly_dropdown;
   }
 
@@ -179,6 +179,7 @@ sub genebuild_text {
   my $species      = $hub->species;
   my $sample_data  = $species_defs->SAMPLE_DATA;
   my $ftp          = $self->ftp_url;
+  my $vega         = $species_defs->SUBTYPE !~ /Archive|Pre/ && $species_defs->get_config('MULTI', 'ENSEMBL_VEGA') || {};
 
   return sprintf('
     <div class="homepage-icon">
@@ -216,7 +217,7 @@ sub genebuild_text {
     
     $hub->url({ type => 'UserData', action => 'UploadStableIDs', __clear => 1 }), sprintf($self->{'icon'}, 'tool'),
     
-    $species_defs->get_config('MULTI', 'ENSEMBL_VEGA')->{$species} ? qq(
+    $vega->{$species} ? qq(
       <a href="http://vega.sanger.ac.uk/$species/" class="nodeco">
       <img src="/img/vega_small.gif" alt="Vega logo" style="float:left;margin-right:8px;margin-bottom:1em;width:83px;height:30px;vertical-align:center" title="Vega - Vertebrate Genome Annotation database" /></a>
       <p>Additional manual annotation can be found in <a href="http://vega.sanger.ac.uk/$species/" class="nodeco">Vega</a></p>
@@ -339,7 +340,8 @@ sub funcgen_text {
       <h2>Regulation</h2>
       <p><strong>What can I find?</strong> DNA methylation, transcription factor binding sites, histone modifications, and regulatory features such as enhancers and repressors, and microarray annotations.</p>
       <p><a href="/info/genome/funcgen/" class="nodeco">%sMore about the %s regulatory build</a> and <a href="/info/genome/microarray_probe_set_mapping.html" class="nodeco">microarray annotation</a></p>
-      %s',
+      <p><a href="%s" class="nodeco">%sExperimental data sources</a></p>
+      %s %s',
       
       sprintf(
         $self->{'img_link'},
@@ -353,6 +355,8 @@ sub funcgen_text {
 
       sprintf($self->{'icon'}, 'info'), $species_defs->ENSEMBL_SITETYPE,
       
+      $hub->url({'type' => 'Experiment', 'action' => 'Sources', 'ex' => 'all'}), sprintf($self->{'icon'}, 'info'), 
+
       $ftp ? sprintf(
         '<p><a href="%s/regulation/%s/" class="nodeco">%sDownload all regulatory features</a> (GFF)</p>', ## Link to FTP site
         $ftp, lc $species, sprintf($self->{'icon'}, 'download')

@@ -37,7 +37,7 @@ sub content {
   my $species_defs = $hub->species_defs;
   my $html;
 
-  $html .= '<h4>Key</h4><img src="/img/r2r_legend.png" /><br />' if $object->availability->{'has_2ndary_cons'};
+  $html .= sprintf '<h4>Key</h4><p><img src="%s/img/r2r_legend.png" /></p>', $self->static_server if $object->availability->{'has_2ndary_cons'};
 
   my ($display_name) = $object->display_xref;
 
@@ -45,7 +45,7 @@ sub content {
   my $svg_path = $image->render($display_name);
 
   if ($svg_path) {
-    $html .= qq(<object data="$svg_path" type="image/svg+xml"></object>);
+    $html .= qq(<h4><a href="$svg_path">Download image</a></h4><object data="$svg_path" type="image/svg+xml"></object>);
   }
 
   return $html;

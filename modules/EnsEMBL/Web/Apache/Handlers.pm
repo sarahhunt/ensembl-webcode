@@ -93,7 +93,7 @@ sub childInitHandler {
   warn sprintf "Child initialised: %7d %04d-%02d-%02d %02d:%02d:%02d\n", $$, $X[5]+1900, $X[4]+1, $X[3], $X[2], $X[1], $X[0] if $SiteDefs::ENSEMBL_DEBUG_FLAGS & $SiteDefs::ENSEMBL_DEBUG_HANDLER_ERRORS;
 }
 
-
+sub redirect_to_mobile {}
 sub redirect_to_nearest_mirror {
 ## Redirects requests based on IP address - only used if the ENSEMBL_MIRRORS site parameter is configured
 ## This does not do an actual HTTP redirect, but sets a cookie that tells the JavaScript to perform a client side redirect after specified time interval
@@ -215,7 +215,7 @@ sub postReadRequestHandler {
   
   # Ensembl DEBUG cookie
   $r->headers_out->add('X-MACHINE' => $SiteDefs::ENSEMBL_SERVER) if $cookies->{'ENSEMBL_DEBUG'};
-  
+
   return;
 }
 
@@ -243,6 +243,12 @@ sub cleanURI {
   return DECLINED;
 }
 
+sub redirect_species_page {
+  my ($species_name)  = @_;
+
+  return $species_name eq 'common' ? 'index.html' : "/$species_name/Info/Index";
+}
+
 sub handler {
   my $r = shift; # Get the connection handler
   
@@ -251,10 +257,21 @@ sub handler {
   my $u           = $r->parsed_uri;
   my $file        = $u->path;
   my $querystring = $u->query;
-  my @web_cookies = EnsEMBL::Web::Cookie->retrieve($r, map {'name' => $_, 'encrypted' => 1}, $SiteDefs::ENSEMBL_SESSION_COOKIE, $SiteDefs::ENSEMBL_USER_COOKIE);
-  my $cookies     = {
-    'session_cookie'  => $web_cookies[0] || EnsEMBL::Web::Cookie->new($r, {'name' => $SiteDefs::ENSEMBL_SESSION_COOKIE, 'encrypted' => 1}),
-    'user_cookie'     => $web_cookies[1] || EnsEMBL::Web::Cookie->new($r, {'name' => $SiteDefs::ENSEMBL_USER_COOKIE,    'encrypted' => 1})
+  my @web_cookies = ({
+    'name'            => $SiteDefs::ENSEMBL_SESSION_COOKIE,
+    'encrypted'       => 1,
+    'domain'          => $SiteDefs::ENSEMBL_SESSION_COOKIEHOST,
+  }, {
+    'name'            => $SiteDefs::ENSEMBL_USER_COOKIE,
+    'encrypted'       => 1,
+    'domain'          => $SiteDefs::ENSEMBL_USER_COOKIEHOST,
+  });
+
+  my @existing_cookies = EnsEMBL::Web::Cookie->retrieve($r, @web_cookies);
+
+  my $cookies = {
+    'session_cookie'  => $existing_cookies[0] || EnsEMBL::Web::Cookie->new($r, $web_cookies[0]),
+    'user_cookie'     => $existing_cookies[1] || EnsEMBL::Web::Cookie->new($r, $web_cookies[1]),
   };
 
   my @raw_path = split '/', $file;
@@ -284,6 +301,13 @@ sub handler {
   ## Fix for moved eHive documentation
   if ($file =~ /info\/docs\/eHive\//) {
     $r->uri('/info/docs/eHive.html');
+    $redirect = 1;
+  }
+
+  ## Trackhub short URL
+  if ($raw_path[0] eq 'TrackHub') {
+    $file = '/UserData/TrackHubRedirect?'.$querystring;
+    $r->uri($file);
     $redirect = 1;
   }
 
@@ -484,14 +508,16 @@ sub handler {
   $script = join '/', @path_segments;
 
   # Permanent redirect for old species home pages:
-  # e.g. /Homo_sapiens or Homo_sapiens/index.html -> /Homo_sapiens/Info/Index
-  if ($species && $species_name && (!$script || $script eq 'index.html')) {
-    $r->uri($species_name eq 'common' ? 'index.html' : $species_defs->ENSEMBL_SUBTYPE =~ /mobile/i ? "/$species_name/Info/Annotation#assembly" : "/$species_name/Info/Index"); #additional if for mobile site different species home page
+  # e.g. /Homo_sapiens or Homo_sapiens/index.html -> /Homo_sapiens/Info/Index  
+  if ($species && $species_name && (!$script || $script eq 'index.html')) {      
+    my $species_uri = redirect_species_page($species_name); #move to separate function so that it can be overwritten in mobile plugin
+
+    $r->uri($species_uri);
     $r->headers_out->add('Location' => $r->uri);
     $r->child_terminate;
     $ENSEMBL_WEB_REGISTRY->timer_push('Handler "REDIRECT"', undef, 'Apache');
     
-    return HTTP_MOVED_PERMANENTLY;
+    return HTTP_MOVED_PERMANENTLY;  
   }
   
   #commenting this line out because we do want biomart to redirect. If this is causing problem put it back.

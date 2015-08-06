@@ -74,23 +74,23 @@ sub content {
   if ($species_sets) {
     $html .= qq{
       <h3>Summary of orthologues of this gene</h3>
-      <p class="space-below">Click on 'Show' to display the orthologues for one or more groups, or click on 'Configure this page' to choose a custom list of species</p>
+      <p class="space-below">Click on 'Show details' to display the orthologues for one or more groups of species. Alternatively, click on 'Configure this page' to choose a custom list of species.</p>
     };
  
     $columns = [
-      { key => 'set',       title => 'Species set',    align => 'left',    width => '20%' },
+      { key => 'set',       title => 'Species set',    align => 'left',    width => '26%' },
       { key => 'show',      title => 'Show details',   align => 'center',  width => '10%' },
-      { key => '1:1',       title => '1:1',            align => 'center',  width => '20%' },
-      { key => '1:many',    title => '1:many',         align => 'center',  width => '20%' },
-      { key => 'many:many', title => 'many:many',      align => 'center',  width => '20%' },
-      { key => 'none',      title => 'No orthologues', align => 'center',  width => '20%' },
+      { key => '1:1',       title => 'With 1:1 orthologues',       align => 'center',  width => '16%', help => 'Number of species with 1:1 orthologues' },
+      { key => '1:many',    title => 'With 1:many orthologues',    align => 'center',  width => '16%', help => 'Number of species with 1:many orthologues' },
+      { key => 'many:many', title => 'With many:many orthologues', align => 'center',  width => '16%', help => 'Number of species with many:many orthologues' },
+      { key => 'none',      title => 'Without orthologues',        align => 'center',  width => '16%', help => 'Number of species without orthologues' },
     ];
 
     foreach my $set (@$set_order) {
       my $set_info = $species_sets->{$set};
       
       push @rows, {
-        'set'       => "<strong>$set_info->{'title'}</strong><br />$set_info->{'desc'}",
+        'set'       => "<strong>$set_info->{'title'}</strong> (<i>$set_info->{'all'} species</i>)<br />$set_info->{'desc'}",
         'show'      => qq{<input type="checkbox" class="table_filter" title="Check to show these species in table below" name="orthologues" value="$set" />},
         '1:1'       => $set_info->{'1-to-1'}       || 0,
         '1:many'    => $set_info->{'1-to-many'}    || 0,
@@ -108,7 +108,7 @@ sub content {
 
   my $column_name = $self->html_format ? 'Compare' : 'Description';
   
-  my $columns = [
+  $columns = [
     { key => 'Species',    align => 'left', width => '10%', sort => 'html'                                                },
     { key => 'Type',       align => 'left', width => '5%',  sort => 'string'                                              },
     { key => 'dN/dS',      align => 'left', width => '5%',  sort => 'numeric'                                             },
@@ -271,27 +271,28 @@ sub export_options { return {'action' => 'Orthologs'}; }
 
 sub get_export_data {
 ## Get data for export
-  my $self = shift;
+  my ($self, $flag) = @_;
   my $hub          = $self->hub;
   my $object       = $self->object || $hub->core_object('gene');
-  my $cdb          = shift || $hub->param('cdb') || 'compara';
 
-  my ($homologies) = $object->get_homologies('ENSEMBL_ORTHOLOGUES', undef, undef, $cdb);
-  return $homologies;
-=pod
-  my $ok_homologies = [];
-
-  foreach my $homology (@$homologies) {
-    foreach my $member (@{$homology->get_all_Members}) {
-      if ($hub->param('species_'.$member->genome_db->name) eq 'yes') {
-        push @$ok_homologies, $homology;
-        last;
-      }
+  if ($flag eq 'sequence') {
+    return $object->get_homologue_alignments;
+  }
+  else {
+    my $cdb = $flag || $hub->param('cdb') || 'compara';
+    my ($homologies) = $object->get_homologies('ENSEMBL_ORTHOLOGUES', undef, undef, $cdb);
+    my %ok_species;
+    foreach (grep { /species_/ } $hub->param) {
+      (my $sp = $_) =~ s/species_//;
+      $ok_species{$sp} = 1 if $hub->param($_) eq 'yes';
+    }
+    if (keys %ok_species) {
+      return [grep {$ok_species{$_->get_all_Members->[1]->genome_db->name}} @$homologies];
+    }
+    else {
+      return $homologies;
     }
   }
-
-  return $ok_homologies;
-=cut
 }
 
 sub buttons {
@@ -316,9 +317,9 @@ sub buttons {
                 };
 
     ## Add any species settings
-    #foreach (grep { /^species_/ } $hub->param) {
-    #  $params->{$_} = $hub->param($_);
-    #}
+    foreach (grep { /^species_/ } $hub->param) {
+      $params->{$_} = $hub->param($_);
+    }
 
     push @buttons, {
                     'url'     => $hub->url($params),

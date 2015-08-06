@@ -37,10 +37,38 @@ sub content {
   my $self  = shift;
   my $hub   = $self->hub;
 
-  my $settings = {};
+  ## Note - these options aren't available on the page, so they
+  ## don't belong in the viewconfig
+  my $markup_options  = EnsEMBL::Web::Constants::MARKUP_OPTIONS;
+  my %seq_element     = %{$markup_options->{'seq_type'}};
+  my %align_element   = %seq_element;
+  my @values          = @{$seq_element{'values'}};
+  ## Removed unaligned sequence values from dropdown
+  pop @values;
+  pop @values;
+  $align_element{'values'} = \@values;
+
+  my $settings = {
+                  'seq_type'    => \%seq_element,
+                  'align_type'  => \%align_element,
+                  };
+
+  ## Pass species selection to output
+  my $species_options = [];
+  foreach (grep { /^species_/ } $hub->param) {
+    push @$species_options, $_;
+  }
+
+  $settings->{'Hidden'} = $species_options;
 
   ## Options per format
   my $fields_by_format = {'OrthoXML' => []};
+
+  ## Add formats output by BioPerl
+  foreach ($self->alignment_formats) {
+    my $field = $_ eq 'FASTA' ? 'seq_type' : undef;
+    $fields_by_format->{$_} = [$field];
+  }
 
   ## Create settings form (comes with some default fields - see parent)
   my $form = $self->create_form($settings, $fields_by_format, 1);

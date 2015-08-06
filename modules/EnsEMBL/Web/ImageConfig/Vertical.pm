@@ -22,7 +22,7 @@ use strict;
 
 use List::Util qw(sum);
 
-use Bio::EnsEMBL::ExternalData::BigFile::BigWigAdaptor;
+use Bio::EnsEMBL::IO::Adaptor::BigWigAdaptor;
 use EnsEMBL::Web::Text::FeatureParser;
 use EnsEMBL::Web::File::User;
 
@@ -61,21 +61,29 @@ sub load_user_tracks {
 
 sub _user_track_settings {
   my ($self, $format) = @_;
+  my $renderers;
 
-  my $renderers = [
-    'density_line',       'Density plot - line graph',
-    'density_bar',        'Density plot - filled bar chart',
-    'density_outline',    'Density plot - outline bar chart',
+  if (lc $format eq 'bigwig') {
+    $renderers = [
+                  'density_raw',        'Line graph - raw mean',
+                  'density_line',       'Line graph - mean scaled to max',
+                  'density_whiskers',   'Line graph - mean with whiskers',
+                  'density_bar',        'Histogram, filled - mean',
+                  'density_outline',    'Histogram, outline - mean',
+                  ];
+  }
+  else {
+    $renderers = [
+                  'highlight_lharrow',  'Arrow on lefthand side',
+                  'highlight_rharrow',  'Arrow on righthand side',
+                  'highlight_bowtie',   'Arrows on both sides',
+                  'highlight_wideline', 'Line',
+                  'highlight_widebox',  'Box',
+                  'density_line',       'Density plot - line graph',
+                  'density_bar',        'Density plot - filled bar chart',
+                  'density_outline',    'Density plot - outline bar chart',
                   ];
 
-  unless (lc $format eq 'bigwig') {
-    unshift @$renderers, (
-      'highlight_lharrow',  'Arrow on lefthand side',
-      'highlight_rharrow',  'Arrow on righthand side',
-      'highlight_bowtie',   'Arrows on both sides',
-      'highlight_wideline', 'Line',
-      'highlight_widebox',  'Box',
-    );
   }
 
   unshift @$renderers, ('off', 'Off');
@@ -90,7 +98,7 @@ sub load_user_track_data {
   my $bin_size     = int($self->container_width / $bins);
   my $track_width  = $self->get_parameter('width') || 80;
   my @colours      = qw(darkred darkblue darkgreen purple grey red blue green orange brown magenta violet darkgrey);
-  my ($feature_adaptor, $slice_adaptor, $parser, %data, $max);
+  my ($feature_adaptor, $slice_adaptor, $parser, %data, $max_value, $max_mean);
   
   foreach my $track ($self->get_node('user_data')->nodes) {
     my $display = $track->get('display');
@@ -100,7 +108,7 @@ sub load_user_track_data {
     
     my $logic_name = $track->get('logic_name');
     my $colour     = \@colours;
-    my $max_value;
+    my ($max1, $max2);
     
     unshift @$colour, 'black' if $display eq 'density_graph'; 
    
@@ -117,8 +125,8 @@ sub load_user_track_data {
         $short_name = substr($short_name, 0, 17).'...' if length($short_name) > 20;
         $track->set('label', $short_name);
 
-        my $adaptor = Bio::EnsEMBL::ExternalData::BigFile::BigWigAdaptor->new($track_data->{'url'}); 
-        ($data{$track->id}, $max_value) = $self->get_bigwig_features($adaptor, $track_data->{'name'}, $chromosomes, $bins, $bin_size, $track_data->{'colour'}); 
+        my $adaptor = Bio::EnsEMBL::IO::Adaptor::BigWigAdaptor->new($track_data->{'url'}); 
+        ($data{$track->id}, $max1, $max2) = $self->get_bigwig_features($adaptor, $track_data->{'name'}, $chromosomes, $bins, $bin_size, $track_data->{'colour'}); 
       }
       else {
         if ($parser) {
@@ -130,14 +138,15 @@ sub load_user_track_data {
           $parser->filter($chromosomes->[0]) if scalar @$chromosomes == 1;
         }
       
-        ( $data{$track->id}, $max_value) = $self->get_parsed_features($track, $parser, $bins, $colour);
+        ( $data{$track->id}, $max1, $max2) = $self->get_parsed_features($track, $parser, $bins, $colour);
       }
     }
     
-    $max = $max_value if $max_value > $max;
+    $max_value = $max1 if $max1 && $max1 > $max_value;
+    $max_mean = $max2 if $max2 && $max2 > $max_mean;
   }
   
-  if ($max) {
+  if ($max_value) {
     foreach my $id (keys %data) {
       foreach my $chr (keys %{$data{$id}}) {
         foreach my $track_data (values %{$data{$id}{$chr}}) {
@@ -148,7 +157,8 @@ sub load_user_track_data {
   }
   
   $self->set_parameter('bins',      $bins);
-  $self->set_parameter('max_value', $max);
+  $self->set_parameter('max_value', $max_value);
+  $self->set_parameter('max_mean',  $max_mean);
   
   return \%data;
 }
@@ -226,7 +236,7 @@ sub get_bigwig_features {
   my $data;  
   $name ||= 'BigWig';
 
-  my ($raw_data, $max) = $adaptor->fetch_scores_by_chromosome($chromosomes, $bins, $bin_size);
+  my ($raw_data, $max, $max_mean) = $adaptor->fetch_scores_by_chromosome($chromosomes, $bins, $bin_size);
 
   while (my($chr, $scores) = each(%$raw_data)) {
     $data->{$chr}{$name} = { 
@@ -235,7 +245,7 @@ sub get_bigwig_features {
                             'sort'   => 0,
                           };
   }
-  return ($data, $max);
+  return ($data, $max, $max_mean);
 }
 
 sub create_user_features {
@@ -247,10 +257,11 @@ sub create_user_features {
   return $tracks unless $menu;
   
   foreach ($menu->nodes) {
-    next unless $_->get('display') ne 'off'; 
+    next if $_->get('display') =~ /density/;
+    next unless $_->get('display') ne 'off';
     my $data   = $hub->fetch_userdata_by_id($_->id);
     my $parser = $data->{'parser'};
-    
+
     if ($parser) {
       while (my ($type, $track) = each %{$parser->get_all_tracks}) {
         my @rows;

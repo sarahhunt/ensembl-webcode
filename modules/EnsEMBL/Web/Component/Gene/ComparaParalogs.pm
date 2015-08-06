@@ -39,20 +39,15 @@ sub content {
   my $cdb            = shift || $hub->param('cdb') || 'compara';
   my $is_ncrna       = ($self->object->Obj->biotype =~ /RNA/);
   my %paralogue_list = %{$self->object->get_homology_matches('ENSEMBL_PARALOGUES', 'paralog|gene_split', undef, $cdb)};
-  
-  return '<p>No paralogues have been identified for this gene</p>' unless keys %paralogue_list;
-  
-  my %paralogue_map = qw(SEED BRH PIP RHS);
-  my %cached_lca_desc = ();
-  my $alignview     = 0;
- 
-  my %glossary = $hub->species_defs->multiX('ENSEMBL_GLOSSARY');
-  my $taxon_common_names = $self->hub->species_defs->multi_hash->{'DATABASE_COMPARA'}{'TAXON_NAME'};
 
-  my $lookup = {
-                'Paralogues (same species)' => 'Within species paralogues (within species paralogs)',
-                };
- 
+  return '<p>No paralogues have been identified for this gene</p>' unless keys %paralogue_list;
+
+  my %paralogue_map       = qw(SEED BRH PIP RHS);
+  my %cached_lca_desc     = ();
+  my $alignview           = 0;
+  my $taxon_common_names  = $self->hub->species_defs->multi_hash->{'DATABASE_COMPARA'}{'TAXON_NAME'};
+  my $lookup              = { 'Paralogues (same species)' => 'Within species paralogues (within species paralogs)' };
+
   my $columns = [
     { key => 'Type',                align => 'left', width => '10%', sort => 'html'          },
     { key => 'Ancestral taxonomy',  align => 'left', width => '10%', sort => 'html'          },
@@ -135,8 +130,6 @@ sub content {
 
       $links .= '</ul>';
 
-      my $glossary_def = $glossary{$lookup->{ucfirst $paralogue_desc}} || '';
-
       my $ancestral_taxonomy;
       my $lca_desc;
       if (not $species_tree_node) {
@@ -164,11 +157,11 @@ sub content {
       }
       
       push @rows, {
-        'Type'                => $glossary_def ? sprintf('<span class="glossary_mouseover">%s<span class="floating_popup">%s</span></span>', ucfirst $paralogue_desc, $glossary_def) : ucfirst $paralogue_desc,
-        'Ancestral taxonomy'  => $lca_desc ? sprintf('<span class="glossary_mouseover">%s<span class="floating_popup">%s</span></span>', $ancestral_taxonomy, $lca_desc) : $ancestral_taxonomy,
-        'identifier' => $self->html_format ? $id_info : $stable_id,
-        'Compare'             => $self->html_format ? qq{<span class="small">$links</span>} : '',
-        'Location'            => qq{<a href="$location_link">$paralogue->{'location'}</a>},
+        'Type'                => $self->glossary_helptip(ucfirst $paralogue_desc, $lookup->{ucfirst $paralogue_desc}),
+        'Ancestral taxonomy'  => $self->helptip($ancestral_taxonomy, $lca_desc),
+        'identifier'          => $self->html_format ? $id_info : $stable_id,
+        'Compare'             => $self->html_format ? qq(<span class="small">$links</span>) : '',
+        'Location'            => qq(<a href="$location_link">$paralogue->{'location'}</a>),
         'Target %id'          => $target,
         'Query %id'           => $query,
       };
@@ -191,14 +184,18 @@ sub export_options { return {'action' => 'Paralogs'}; }
 
 sub get_export_data {
 ## Get data for export
-  my $self = shift;
+  my ($self, $flag) = @_;
   my $hub          = $self->hub;
   my $object       = $self->object || $hub->core_object('gene');
-  my $cdb          = $hub->param('cdb') || 'compara';
 
-  my ($homologies) = $object->get_homologies('ENSEMBL_PARALOGUES', 'paralog|gene_split', undef, $cdb);
-
-  return $homologies;
+  if ($flag eq 'sequence') {
+    return $object->get_homologue_alignments;
+  }
+  else {
+    my $cdb = $flag || $hub->param('cdb') || 'compara';
+    my ($homologies) = $object->get_homologies('ENSEMBL_PARALOGUES', 'paralog|gene_split', undef, $cdb);
+    return $homologies;
+  }
 }
 
 sub buttons {
@@ -221,6 +218,11 @@ sub buttons {
                   'data_action' => $hub->action,
                   'gene_name'   => $name,
                 };
+
+    ## Add any species settings
+    foreach (grep { /^species_/ } $hub->param) {
+      $params->{$_} = $hub->param($_);
+    }
 
     push @buttons, {
                     'url'     => $hub->url($params),
