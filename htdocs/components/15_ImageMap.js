@@ -32,6 +32,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.labelWidth         = 0;
     this.boxCoords          = {}; // only passed to the backend as GET param when downloading the image to embed the red highlight box into the image itself
     this.altKeyDragging     = false;
+    this.highlightBoundary  = false;
     
     function resetOffset() {
       delete this.imgOffset;
@@ -85,6 +86,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.makeHoverLabels();
     this.initImageButtons();
     this.initImagePanning();
+    this.initSelector();
     this.highlightLocation(Ensembl.highlightedLoc);
     
     if (!this.vertical) {
@@ -310,6 +312,11 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         }
       }
     });
+
+    // boundary for location highlighting
+    if (this.draggables.length) {
+      this.highlightBoundary = this.draggables[0];
+    }
 
     if (Ensembl.images.total) {
       this.highlightAllImages();
@@ -1150,13 +1157,15 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       coords.b = this.dragRegion.b;
     }
 
+    this.elLk.selector.css({ left: coords.l, top: coords.t, width: coords.r - coords.l + 1, height: coords.b - coords.t - 1 }).show();
+  },
+
+  initSelector: function () {
     if (!this.elLk.selector || !this.elLk.selector.length) {
       this.elLk.selector = $('<div class="_selector selector"></div>').insertAfter(this.elLk.img).toggleClass('vertical', this.vertical).filter(':not(.vertical)')
         .append('<div class="left-border"></div><div class="right-border"></div>').end();
       this.activateSelector();
     }
-
-    this.elLk.selector.css({ left: coords.l, top: coords.t, width: coords.r - coords.l + 1, height: coords.b - coords.t - 1 }).show();
   },
 
   activateSelector: function() {
@@ -1210,8 +1219,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
   },
 
   highlightLocation: function (r, offset) {
-    var panel   = this;
-    var imgBox  = this.draggables && this.draggables[0];
+    var panel = this;
     var start, end;
 
     offset = offset || 0;
@@ -1222,13 +1230,13 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     }
 
     // if image box is not interactive
-    if (!imgBox) {
+    if (!this.highlightBoundary) {
       return;
     }
 
     // create the highlighted area div
     if (!this.elLk.highlightedLocation) {
-      this.elLk.highlightedLocation = $('<div class="selector hlrselector"><div class="hlrselector-close">X</div></div>').hide().insertAfter(this.elLk.img)
+      this.elLk.highlightedLocation = $('<div class="selector hlrselector"><div class="hlrselector-close">X</div></div>').hide().insertAfter(this.elLk.selector)
         .find('div').helptip({content: 'Clear highlighted region'}).on('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
@@ -1249,7 +1257,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
             Ensembl.highlightLocation(false);
           } else if (this.className.match(/outside/)) {
             var hlr     = Ensembl.getHighlightedLocation() || Ensembl.lastHighlightedLoc;
-            var length  = imgBox.range.end - imgBox.range.start; // preserve the scale
+            var length  = panel.highlightBoundary.range.end - panel.highlightBoundary.range.start; // preserve the scale
             var centre  = (hlr[2] + hlr[3]) / 2;
             Ensembl.highlightLocation(hlr);
             Ensembl.updateLocation(hlr[1] + ':' + Math.max(1, Math.round(centre - length / 2)) + '-' + Math.round(centre + length / 2));
@@ -1277,17 +1285,17 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.selectArea(false);
 
     // calculate start and end of the current image
-    start = imgBox.range.start - offset;
-    end   = imgBox.range.end - offset;
+    start = this.highlightBoundary.range.start - offset;
+    end   = this.highlightBoundary.range.end - offset;
 
     // display the highlighted region if it overlaps the current region
-    if (imgBox.range.chr === r[1] && (start > r[2] && start < r[3] || end > r[2] && end < r[3] || start <= r[2] && end >= r[3])) {
+    if (this.highlightBoundary.range.chr === r[1] && (start > r[2] && start < r[3] || end > r[2] && end < r[3] || start <= r[2] && end >= r[3])) {
 
       this.elLk.highlightedLocation.css({
-        left:   imgBox.l + Math.max(r[2] - start, 0) / imgBox.range.scale,
-        width:  (Math.min(end, r[3] + 1) - Math.max(r[2], start)) / imgBox.range.scale - 1,
-        top:    imgBox.t,
-        height: imgBox.b - imgBox.t
+        left:   this.highlightBoundary.l + Math.max(r[2] - start, 0) / this.highlightBoundary.range.scale,
+        width:  (Math.min(end, r[3] + 1) - Math.max(r[2], start)) / this.highlightBoundary.range.scale - 1,
+        top:    this.highlightBoundary.t,
+        height: this.highlightBoundary.b - this.highlightBoundary.t
       }).show();
 
       this.elLk.highlightButton.addClass('selected').removeClass('outside').trigger('refreshTip').show();
@@ -1312,12 +1320,12 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       extra.boxes = this.boxCoords;
     }
 
-    if (Ensembl.highlightedLoc) {
+    if (Ensembl.highlightedLoc && this.highlightBoundary) {
       extra.highlight = {
-        x: Math.round((Ensembl.highlightedLoc[2] - this.draggables[0].range.start) / this.draggables[0].range.scale + this.draggables[0].l),
-        y: this.draggables[0].t,
-        w: Math.round((Ensembl.highlightedLoc[3] - Ensembl.highlightedLoc[2]) / this.draggables[0].range.scale),
-        h: this.draggables[0].b - this.draggables[0].t
+        x: Math.round((Ensembl.highlightedLoc[2] - this.highlightBoundary.range.start) / this.highlightBoundary.range.scale + this.highlightBoundary.l),
+        y: this.highlightBoundary.t,
+        w: Math.round((Ensembl.highlightedLoc[3] - Ensembl.highlightedLoc[2]) / this.highlightBoundary.range.scale),
+        h: this.highlightBoundary.b - this.highlightBoundary.t
       };
     }
 
