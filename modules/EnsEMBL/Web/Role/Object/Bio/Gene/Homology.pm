@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Bio::Gene::Homology;
+package EnsEMBL::Web::Role::Object::Bio::Gene::Homology;
 
 ### Compara-specific data-munging for gene pages
 

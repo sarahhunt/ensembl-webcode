@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Bio;
+package EnsEMBL::Web::Role::Object::Bio;
 
 ### Generic role to hold functionality shared by _all_ genomic objects
 

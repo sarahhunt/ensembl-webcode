@@ -16,7 +16,7 @@ limitations under the License.
 
 =cut
 
-package EnsEMBL::Web::Role::Bio::Gene::Tree;
+package EnsEMBL::Web::Role::Object::Bio::Gene::Tree;
 
 ### Compara-specific data-munging for gene pages
 
