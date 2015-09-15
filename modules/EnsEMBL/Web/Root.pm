@@ -442,7 +442,7 @@ sub apply_roles_to_object {
   my $api_type      = $object->api_type;
   if ($api_type && $api_type eq 'Perl') {
     my $object_type   = $object->type;
-    my @roles         = ('EnsEMBL::Web::Role::Bio', "EnsEMBL::Web::Role::Bio::$object_type");
+    my @roles         = ("EnsEMBL::Web::Role::Object::Bio::$object_type", 'EnsEMBL::Web::Role::Object::Bio');
     Role::Tiny->apply_roles_to_object($object, @roles);
   }
 }
