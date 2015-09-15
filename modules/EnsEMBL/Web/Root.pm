@@ -436,15 +436,19 @@ sub new_bio_object {
 }
 
 sub apply_roles_to_object {
-  my ($self, $object) = @_;
+  my ($self, $object, @roles) = @_;
   return unless $object;
 
   my $api_type      = $object->api_type;
   if ($api_type && $api_type eq 'Perl') {
     my $object_type   = $object->type;
-    my @roles         = ("EnsEMBL::Web::Role::Object::Bio::$object_type", 'EnsEMBL::Web::Role::Object::Bio');
-    Role::Tiny->apply_roles_to_object($object, @roles);
+    foreach (@roles) {
+      $_ = 'EnsEMBL::Web::Role::Object::Bio::'.$_ if $_;
+    }
+    push @roles, ("EnsEMBL::Web::Role::Object::Bio::$object_type", 'EnsEMBL::Web::Role::Object::Bio');
   }
+  ## Don't try to apply non-existent roles, or Role::Tiny will complain
+  Role::Tiny->apply_roles_to_object($object, @roles) if scalar @roles;
 }
 
 sub new_object {
