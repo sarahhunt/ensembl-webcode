@@ -31,9 +31,6 @@ package EnsEMBL::Web::Root;
 
 use strict;
 
-## Stop Role::Tiny from spamming logs with pointless warnings
-no warnings::anywhere qw(uninitialized);
-
 use Role::Tiny;
 use File::Path            qw(mkpath);
 use File::Spec::Functions qw(splitpath);
@@ -436,12 +433,18 @@ sub new_bio_object {
 }
 
 sub apply_roles_to_object {
+### Wrapper around Role::Tiny::apply_roles_to_object, adding some namespace sugar
+### @param object - a EnsEMBL Perl object (could be any object with compatible Role(s))
+### @param roles - a list of strings, which are the package names of roles (these names 
+###                should be shortened if the relevant section of the method munges the namespace)
+### @return Void
   my ($self, $object, @roles) = @_;
-  return unless $object;
+  return unless $object && ref($object);
 
-  my $api_type      = $object->api_type;
+  ## Auto-configure role list based on API type
+  my $api_type = $object->can('api_type') ? $object->api_type : undef;
   if ($api_type && $api_type eq 'Perl') {
-    my $object_type   = $object->type;
+    my $object_type = $object->type;
     foreach (@roles) {
       $_ = 'EnsEMBL::Web::Role::Object::Bio::'.$_ if $_;
     }
