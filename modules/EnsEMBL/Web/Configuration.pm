@@ -38,7 +38,6 @@ sub new {
   bless $self, $class;
 
   my $object        = $builder->object;
-  $self->apply_roles_to_object($object);
   $self->{'object'} = $object;
 
   $self->init;
@@ -171,10 +170,14 @@ sub get_valid_action {
     $node     = $tree->get_node($action);
     $node_key = $action;
   }
-  if ($node && !$assume_valid) {
-    $self->{'availability'} = $object->availability if $object;
-    unless ($node->get('type') =~ /view/ && $self->is_available($node->get('availability'))) {
-      $node = $tree->get_node('Unknown');
+  if ($node) {
+    my @roles = @{$node->data->{'object_roles'}||[]};
+    $self->apply_roles_to_object($object, @roles);
+    if (!$assume_valid) {
+      $self->{'availability'} = $object->availability if $object;
+      unless ($node->get('type') =~ /view/ && $self->is_available($node->get('availability'))) {
+        $node = $tree->get_node('Unknown');
+      }
     }
   }
   elsif (!$node) {
@@ -257,7 +260,7 @@ sub get_configurable_components {
       }
     }
   }
-  
+
   return \@components;
 }
 
