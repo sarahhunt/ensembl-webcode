@@ -24,7 +24,7 @@ use PDF::API2;
 
 use base qw(EnsEMBL::Draw::Renderer);
 
-1;
+use List::Util qw(max);
 
 sub init_canvas {
   my ($self, $config, $im_width, $im_height) = @_;
@@ -39,7 +39,7 @@ sub init_canvas {
   $self->canvas(
     { 'im_height' => $im_height, 'page' => $page, 'pdf' => $pdf, 'g' => $page->gfx, 't'=>$page->text, 'font' => $pdf->corefont('Helvetica-Bold',1) }
   );
-  $self->{'canvas'}{'g'}->linewidth(0.25);
+  $self->{'canvas'}{'g'}->linewidth(0.5);
 }
 
 sub add_canvas_frame {
@@ -80,6 +80,10 @@ sub render_Rect {
 	my($x,$y) = $self->XY($glyph->pixelx,$glyph->pixely);
 	my($a,$b) = $self->XY($glyph->pixelx+$glyph->pixelwidth,$glyph->pixely+$glyph->pixelheight);
 
+  ## Fix invisible glyphs!
+  if ($a - $x < 1) { $a += 1; }
+  if ($b - $y < 1) { $b += 1; }
+
   if(defined $gcolour) {
     unless( $gcolour eq 'transparent' ) {
     $self->fillcolor( $gcolour );
@@ -118,7 +122,7 @@ sub render_Barcode {
   if($glyph->{'wiggle'} eq 'bar') {
     my $mul = ($y2-$y1) / $max;
     foreach my $p (@$points) {
-      my $yb = $y1 + $p * $mul;
+      my $yb = $y1 + max($p,0) * $mul;
       $self->strokecolor($colours[0]);
       $self->fillcolor($colours[0]);
       $self->rect($x1,$top-$y2,$x2-$x1,$yb-$y1,$colours[0]);
@@ -128,7 +132,7 @@ sub render_Barcode {
     }
   } else {
     foreach my $p (@$points) {
-      my $colour = $colours[int($p * scalar @colours / $max)] || 'black';
+      my $colour = $colours[int(max($p,0) * scalar @colours / $max)] || 'black';
       $self->fillcolor($colour);
       $self->strokecolor($colour);
       $self->rect($x1,$top-$y1,$x2-$x1,$y2-$y1);

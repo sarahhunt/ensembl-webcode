@@ -213,6 +213,8 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
 
  Database Host:      %s
 
+ Session database:   %s on %s:%s
+
  ORM Databases:      %s
 
  External address:   %s/
@@ -236,6 +238,7 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
  Identities used:    %s
 
  Plugins installed:  %s
+ Cohort:             %s
 
 ==============================================================================
 
@@ -244,7 +247,9 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
 
   $conf->DATABASE_HOST,
 
-  (keys %$orm_connections ? join("\n                     ", map { sprintf '%-15s %s on %s', "$_:", $orm_connections->{$_}->database, $orm_connections->{$_}->host } keys %$orm_connections) : 'None'),
+  (map { my $db = $_; map $db->{$_}, qw(NAME HOST PORT) } $conf->multidb->{'DATABASE_SESSION'}),
+
+  (keys %$orm_connections ? join("\n                     ", map { sprintf '%-15s %s on %s:%s', "$_:", $orm_connections->{$_}->database, $orm_connections->{$_}->host, $orm_connections->{$_}->port } keys %$orm_connections) : 'None'),
 
   $conf->ENSEMBL_BASE_URL,
   $conf->ENSEMBL_PROTOCOL, $conf->ENSEMBL_SERVER,     $conf->ENSEMBL_PORT,
@@ -263,7 +268,8 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
 
   @xs_enabled?join("\n".(' ' x 21),@xs_enabled):'- none -',
   join("\n".(' 'x21),map { "$_ (".$conf->ENSEMBL_IDS_USED->{$_}.")" } sort keys %{$conf->ENSEMBL_IDS_USED}),
-  join("\n                     ", grep(/::/, map { "$_ (".join(',',@{$conf->ENSEMBL_PLUGINS_USED->{$_}||[]}).")" } @{$conf->ENSEMBL_PLUGINS || []}), $extra);
+  join("\n                     ", grep(/::/, map { "$_ (".join(',',@{$conf->ENSEMBL_PLUGINS_USED->{$_}||[]}).")" } @{$conf->ENSEMBL_PLUGINS || []}), $extra),
+  $conf->ENSEMBL_COHORT;
 }
 
 1;

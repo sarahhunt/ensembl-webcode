@@ -41,10 +41,13 @@ a.bigtext     { text-decoration: none;                        }
 .autocenter         { text-align: left; margin: 0 auto; }
 .bold               { font-weight: bold; }
 .italic             { font-style: italic; }
+.text-float-left    { float: left; margin-right: 0.5em; }
 .clear              { clear: both; }
 .clear-left         { clear: left; }
 .clear-right        { clear: right; }
 .nodeco             { text-decoration: none; }
+.nodeco[rel=external],
+.nodeco[rel=external]:hover { background-image: none; }
 .spaced             { line-height: 20px !important; }
 .space-above        { margin-top: 2em; }
 pre.wrap            { white-space: pre-wrap; }
@@ -60,6 +63,8 @@ pre.wrap            { white-space: pre-wrap; }
 .bg4    { background: [[CONTRAST_BG]];     }
 .hilite { background: [[CONTRAST_BORDER]]; }
 .red    { color: #933; }
+
+hr { display:block; height:4px; border:0; border-top: 4px solid [[MH_TAB]]; margin: 1em 0; padding: 0; }
 
 /*----------------------------------------------------------------------
   Columns and boxes 
@@ -193,3 +198,7 @@ a.notext { text-decoration:none; }
 a.fn-link { vertical-align:super; font-size:0.7em; text-decoration:none; }
 div.footnotes { margin-top:2em; }
 div.footnotes ol li { font-size:0.9em; }
+
+/* documentation pages styling */
+#evidence_status_table              { width: 850px; }
+#evidence_status_table th.set_min   { min-width: 150px; }

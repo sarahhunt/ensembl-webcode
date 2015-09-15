@@ -182,10 +182,11 @@ sub _feature_href {
 sub _draw_wiggle_points_as_bar_or_points {
   my ($self,$c,$features,$parameters) = @_;
 
-  my $hrefs     = $parameters->{'hrefs'};
+  my $hrefs         = $parameters->{'hrefs'};
   my $use_points    = $parameters->{'graph_type'} eq 'points';
-  my $max_score = $parameters->{'max_score'};
-  my $slice_length = $self->{'container'}->length;
+  my $max_score     = $parameters->{'max_score'};
+  my $slice_length  = $self->{'container'}->length;
+  my @rectangles;
 
   foreach my $f (@$features) {
     my $href = $self->_feature_href($f,$hrefs||{});
@@ -194,7 +195,7 @@ sub _draw_wiggle_points_as_bar_or_points {
     my $height = ($score-$c->{'line_score'}) * $c->{'pix_per_score'};
     my $title = sprintf('%.2f',$score);
 
-    $self->push($self->Rect({
+    push @rectangles, {
       y         => $c->{'line_px'} - max($height, 0),
       height    => $use_points ? 0 : abs $height,
       x         => $start - 1,
@@ -204,8 +205,11 @@ sub _draw_wiggle_points_as_bar_or_points {
       alpha     => $parameters->{'use_alpha'} ? 0.5 : 0,
       title     => $parameters->{'no_titles'} ? undef : $title,
       href      => $href,
-    }));
+      class     => $parameters->{'class'} // ''
+    };
   }
+
+  $self->push($self->Rect($_)) for sort { $b->{'height'} <=> $a->{'height'} } @rectangles;
 }
 
 sub _discrete_features {
@@ -220,10 +224,14 @@ sub _discrete_features {
 
 sub _draw_wiggle_points_as_line {
   my ($self, $c, $features) = @_;
+  return unless $features && $features->[0];
   my $slice_length = $self->{'container'}->length;
   my $discrete_features = $self->_discrete_features($features);
   if($discrete_features) {
     $features = [ sort { $a->start <=> $b->start } @$features ];
+  }
+  elsif (ref($features->[0]) eq 'HASH') {
+    $features = [ sort { $a->{'start'} <=> $b->{'start'} } @$features ];
   }
 
   my ($previous_x,$previous_y);
@@ -333,10 +341,6 @@ sub do_draw_wiggle {
   # pix_per_score: vertical pixels per unit score
   my $max_score     = $parameters->{'max_score'};
   my $min_score     = $parameters->{'min_score'};
-  if($parameters->{'unit'}) {
-    # Barcode glyph can't cope with anything else
-    $min_score = 0;
-  }
   my $range = $max_score-$min_score;
   if($range < 0.01) {
     # Oh dear, data all has pretty much same value ...
@@ -364,12 +368,13 @@ sub do_draw_wiggle {
   $self->{'subtitle_colour'} ||=
     $parameters->{'score_colour'} || $self->my_colour('score') || 'blue';
 
-  # Shift down the lhs label to between the axes
-  if($bottom-$top > 30) {
+  # Shift down the lhs label to between the axes unless the subtitle is within the track
+  if($bottom-$top > 30 && $self->wiggle_subtitle) {
     # luxurious space for centred label
+    # graph is offset down if subtitled
     $self->{'label_y_offset'} =
         ($bottom-$top)/2             # half-way-between
-        + $self->subtitle_height     # graph is offset down if subtitled
+        + $self->subtitle_height     
         - 16;                        # two-line label so centre its centre
   } else {
     # tight, just squeeze it down a little

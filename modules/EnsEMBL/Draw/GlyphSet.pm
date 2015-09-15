@@ -75,6 +75,7 @@ sub new {
     label2     => undef,
     bumped     => undef,
     error      => undef,
+    features   => [],
     highlights => $data->{'highlights'},
     strand     => $data->{'strand'},
     container  => $data->{'container'},
@@ -87,6 +88,7 @@ sub new {
   
   bless $self, $class;
   
+  $self->{'features'} = $self->init;
   $self->init_label;
 
   return $self;
@@ -99,6 +101,8 @@ sub get_parameter      { return $_[0]->{'config'}->get_parameter($_[1]);        
 sub core               { return $_[0]->{'config'}->hub->core_params->{$_[1]};                                                                                    }
 sub scalex             { return $_[0]->{'config'}->transform->{'scalex'};                                                                                        }
 sub error_track_name   { return $_[0]->my_config('caption');                                                                                                     }
+sub get_features       { return $_[0]->{'features'}; }
+
 sub my_label           { return $_[0]->my_config('caption');                                                                                                     }
 sub my_label_caption   { return $_[0]->my_config('labelcaption');                                                                                                }
 sub depth              { return $_[0]->my_config('depth');                                                                                                       }
@@ -250,6 +254,8 @@ sub _init {
   my ($self) = @_;
   print STDERR qq($self unimplemented\n);
 }
+
+sub init { return []; } ## New method used by refactored glyphsets
 
 sub bumped {
   my ($self, $val) = @_;
@@ -485,6 +491,8 @@ sub init_label {
   my $component = $config->get_parameter('component');
   my $hover     = $component && !$hub->param('export') && $node->get('menu') ne 'no';
   my $class     = random_string(8);
+  ## Store this where the glyphset can find it later...
+  $self->{'hover_label_class'} = $class;
 
   if ($hover) {
     my $fav       = $config->get_favourite_tracks->{$track};
@@ -1299,12 +1307,24 @@ sub check {
   return $name;
 }
 
-sub acos_in_degrees {
-  my ($self, $x) = @_;
-  $x = 1 if ($x > 1 || $x < -1);
-  my $pi   = 4*atan2(1,1);
-  my $acos = atan2(sqrt(1 - $x * $x), $x);
-  return int($acos/$pi * 180);
+sub truncate_ellipse {
+  my ($self, $x, $a, $b) = @_;
+  my $h = $self->ellipse_y($x, $a, $b);
+  my $theta =  $self->atan_in_degrees($x, $h);
+  return ($h, $theta);
+}
+
+sub ellipse_y {
+  my ($self, $x, $a, $b) = @_;
+  my $y = sqrt(abs((1 - (($x * $x) / ($a * $a))) * $b * $b));
+  return int($y);
+}
+
+sub atan_in_degrees {
+  my ($self, $x, $y) = @_;
+  my $pi   = 4 * atan2(1, 1);
+  my $atan = atan2($y, $x);
+  return int($atan * (180 / $pi));
 }
 
 1;

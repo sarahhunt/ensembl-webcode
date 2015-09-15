@@ -18,18 +18,22 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
   constructor: function (id, params) {
     this.base(id, params);
     
-    this.dragging         = false;
-    this.panning          = false;
-    this.clicking         = true;
-    this.dragCoords       = {};
-    this.dragRegion       = {};
-    this.highlightRegions = {};
-    this.areas            = [];
-    this.draggables       = [];
-    this.speciesCount     = 0;
-    this.minImageWidth    = 500;
-    this.labelWidth       = 0;
-    this.boxCoords        = {}; // only passed to the backend as GET param when downloading the image to embed the red highlight box into the image itself
+    this.dragging           = false;
+    this.panningAllowed     = false;
+    this.panning            = false;
+    this.clicking           = true;
+    this.dragCoords         = {};
+    this.dragRegion         = {};
+    this.highlightRegions   = {};
+    this.areas              = [];
+    this.draggables         = [];
+    this.speciesCount       = 0;
+    this.minImageWidth      = 500;
+    this.labelWidth         = 0;
+    this.boxCoords          = {}; // only passed to the backend as GET param when downloading the image to embed the red highlight box into the image itself
+    this.altKeyDragging     = false;
+    this.allowHighlight     = !!(window.location.pathname.match(/\/Location\//));
+    this.locationMarkingArea = false;
     
     function resetOffset() {
       delete this.imgOffset;
@@ -44,6 +48,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     Ensembl.EventManager.register('ajaxLoaded',         this, resetOffset); // Adding content could cause scrollbars to appear, changing the offset, but this does not fire the window resize event
     Ensembl.EventManager.register('changeWidth',        this, function () { this.params.updateURL = Ensembl.updateURL({ image_width: false }, this.params.updateURL); Ensembl.EventManager.trigger('queuePageReload', this.id); });
     Ensembl.EventManager.register('highlightAllImages', this, function () { if (!this.align) { this.highlightAllImages(); } });
+    Ensembl.EventManager.register('markLocation',       this, this.markLocation);
   },
   
   init: function () {
@@ -64,8 +69,8 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.elLk.map           = $('.json_imagemap',     this.elLk.container);
     var data                = this.loadJSON(this.elLk.map.html());
     this.elLk.areas         = data.out;
-    this.elLk.exportMenu    = $('.iexport_menu',      this.elLk.container).appendTo('body').css('left', this.el.offset().left);
-    this.elLk.resizeMenu    = $('.image_resize_menu', this.elLk.container).appendTo('body').css('left', this.el.offset().left);
+    this.elLk.exportMenu    = $('.iexport_menu',      this.elLk.container).appendTo('body').css('left', this.el.offset().left).attr('rel', this.id);
+    this.elLk.resizeMenu    = $('.image_resize_menu', this.elLk.container).appendTo('body').css('left', this.el.offset().left).attr('rel', this.id);
     this.elLk.img           = $('img.imagemap',       this.elLk.container);
     this.elLk.hoverLabels   = $('.hover_label',       this.elLk.container);
     this.elLk.boundaries    = $('.boundaries',        this.elLk.container);
@@ -81,6 +86,9 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.makeImageMap();
     this.makeHoverLabels();
     this.initImageButtons();
+    this.initImagePanning();
+    this.initSelector();
+    this.markLocation(Ensembl.markedLocation);
     
     if (!this.vertical) {
       this.makeResizable();
@@ -129,27 +137,6 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       
       return false;
     });
-
-    if (this.elLk.boundaries.length && this.draggables.length) {
-      this.panning = Ensembl.cookie.get('ENSEMBL_REGION_PAN') === '1';
-      this.elLk.toolbars.first().append([
-        '<div class="scroll-switch">',
-          '<span>Drag/Select:</span>',
-          '<div><button title="Scroll to a region" class="dragging on"></button></div>',
-          '<div class="last"><button title="Select a region" class="dragging"></button></div>',
-        '</div>'].join('')).find('button').helptip().on('click', function() {
-        var flag = $(this).hasClass('on');
-        if (flag !== panel.panning) {
-          $(this).parent().parent().find('div').toggleClass('selected');
-          panel.panning = flag;
-          Ensembl.cookie.set('ENSEMBL_REGION_PAN', flag ? '1' : '0');
-          if (flag) {
-            panel.selectArea(false);
-            panel.removeZMenus();
-          }
-        }
-      }).filter(panel.panning ? '.on' : ':not(.on)').parent().addClass('selected');
-    }
   },
 
   loadJSON: function(str) {
@@ -193,6 +180,27 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         }
       });
     });
+  },
+
+  initImagePanning: function () {
+    var panel = this;
+    if (this.elLk.boundaries.length && this.draggables.length) {
+      this.elLk.dragSwitch = this.elLk.toolbars.first().append([
+        '<div class="scroll-switch">',
+          '<span>Drag/Select:</span>',
+          '<div><button title="Scroll to a region" class="dragging on"></button></div>',
+          '<div class="last"><button title="Select a region" class="dragging"></button></div>',
+        '</div>'].join('')).find('button').helptip().on('click', function() {
+        var panning = $(this).hasClass('on');
+        panel.setPanning(panning);
+        if (panning) {
+          panel.selectArea(false);
+          panel.removeZMenus();
+        }
+      }).parent();
+      this.panningAllowed = true;
+      this.setPanning();
+    }
   },
 
   hashChange: function (r) {
@@ -258,12 +266,12 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
   
   makeImageMap: function () {
     var panel = this;
-    
-    var highlight = !!(window.location.pathname.match(/\/Location\//) && !this.vertical);
-    var rect      = [ 'l', 't', 'r', 'b' ];
-    var speciesNumber, c, r, start, end, scale;
-    
+    var rect  = [ 'l', 't', 'r', 'b' ];
+
     $.each(this.elLk.areas,function () {
+
+      var speciesNumber, c, r, start, end, scale;
+
       c = { a: this };
       
       if (this.shape && this.shape.toLowerCase() !== 'rect') {
@@ -277,7 +285,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       
       if (this.klass.drag || this.klass.vdrag) {
         // r = [ '#drag', image number, species number, species name, region, start, end, strand ]
-        r        = c.a.attrs.href.split('|');
+        r        = this.attrs.href.split('|');
         start    = parseInt(r[5], 10);
         end      = parseInt(r[6], 10);
         scale    = (end - start + 1) / (this.vertical ? (c.b - c.t) : (c.r - c.l)); // bps per pixel on image
@@ -286,8 +294,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         
         panel.draggables.push(c);
         
-        if (highlight === true) {
-          r = this.attrs.href.split('|');
+        if (panel.allowHighlight && !panel.vertical) {
           speciesNumber = parseInt(r[1], 10) - 1;
           
           if (panel.multi || !speciesNumber) {
@@ -306,12 +313,19 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       }
     });
 
+    // boundary for location marking
+    if (this.draggables.length) {
+      this.locationMarkingArea = this.draggables[0];
+    }
+
     if (Ensembl.images.total) {
       this.highlightAllImages();
     }
     
     this.elLk.drag.on({
-      mousedown: function (e) {
+      mousedown: function (e, e2) {
+
+        e = e2 || e;
 
         if (!e.which || e.which === 1) { // Only draw the drag box for left clicks.
           panel.dragStart(e);
@@ -319,7 +333,9 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         
         return false;
       },
-      mousemove: function(e) {
+      mousemove: function(e, e2) {
+
+        e = e2 || e;
 
         if (panel.dragging !== false) {
           return;
@@ -351,7 +367,10 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
           }
         }
       },
-      mouseleave: function(e) {
+      mouseleave: function(e, e2) {
+
+        e = e2 || e;
+
         if (e.relatedTarget) {
 
           if (panel.elLk.navHelptip) {
@@ -361,8 +380,11 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         }
       },
       click: function (e, e2) {
+
+        e = e2 || e;
+
         if (panel.clicking) {
-          panel.makeZMenu(e2 || e, panel.getMapCoords(e2 || e));
+          panel.makeZMenu(e, panel.getMapCoords(e));
         } else {
           panel.clicking = true;
         }
@@ -392,7 +414,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         if (hoverLabel.length) {
           // add a div layer over the label, and append the hover menu to the layer. Hover menu toggling is controlled by CSS.
           panel.elLk.labelLayers = panel.elLk.labelLayers.add(
-            $('<div class="label_layer">').append('<div class="label_layer_bg">').append(hoverLabel).appendTo(panel.elLk.container).data({area: this})
+            $('<div class="label_layer _label_layer">').append('<div class="label_layer_bg">').append(hoverLabel).appendTo(panel.elLk.container).data({area: this})
           );
         }
 
@@ -403,25 +425,30 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       } else if (this.a.klass.hover) {
 
         panel.elLk.hoverLayers = panel.elLk.hoverLayers.add(
-          $('<div class="hover_layer">').appendTo(panel.elLk.container).data({area: this}).on('click', function(e) {
-            panel.clicking = true;
-            panel.elLk.drag.triggerHandler('click', e);
-          }
-        ));
+          $('<div class="hover_layer">').appendTo(panel.elLk.container).data({area: this}).on('mousedown mousemove click', function (e) {
+            panel.elLk.drag.triggerHandler(e.type, e);
+          })
+        );
       } else if(this.a.klass.hoverzmenu) { // hover simulates click
         var layer = $('<div class="label_layer">');
         layer.appendTo(panel.elLk.container).data({area: this});
         panel.elLk.labelLayers = panel.elLk.labelLayers.add(layer);
-        (function(){ // this to keep zmid sharable and not muddled
-          var zmid;
-          panel.elLk.labelLayers.on('mouseenter',function(e) {
-            zmid = panel.makeZMenu(e, panel.getMapCoords(e),{'approx':2});
+        (function(layer,zmid,on) {
+          layer.on('mouseenter',function(e) {
+            if(on) { return; }
+            on = true;
+            $('#'+zmid).removeClass('closed');
+            zmid = panel.makeZMenu(e,panel.getMapCoords(e),{'approx':2});
             $('#'+zmid+' .close').hide();
+            $('#'+zmid).show();
           });
-          panel.elLk.labelLayers.on('mouseleave',function(e) {
+          layer.on('mouseleave',function(e) {
+            if(!on) { return; }
+            on = false;
+            $('#'+zmid).addClass('closed');
             $('#'+zmid).hide();
           });
-        })();
+        })(layer,undefined,false);
       }
 
       $a = null;
@@ -429,48 +456,17 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
 
     // add dyna loading to label layers for track description
     this.elLk.labelLayers.on('mouseenter', function () {
-      $(this).find('._dyna_load').dynaLoad();
+      $(this).find('._dyna_load').removeClass('_dyna_load').dynaLoad();
     });
 
     // apply css positions to the hover layers
     this.positionLayers();
 
-    this.elLk.hoverLabels.each(function() {
+    // position hover menus to the right of the layer
+    this.elLk.hoverLabels.css('left', function() { return $(this.parentNode).width(); });
 
-      // position hover menus to the right of the layer and init the tab styled icons inside the hover menus
-      $(this).css('left', function() { return $(this.parentNode).width(); }).find('._hl_icon').tabs($(this).find('._hl_tab'));
-
-    // init config tab, fav icon and close icon
-    }).find('a.config').on('click', function () {
-      var config  = this.rel;
-      var update  = this.href.split(';').reverse()[0].split('='); // update = [ trackId, renderer ]
-      var fav     = '';
-      var $this   = $(this);
-
-      if ($this.hasClass('favourite')) {
-        fav = $this.hasClass('selected') ? 'off' : 'on';
-        Ensembl.EventManager.trigger('changeFavourite', update[0], fav === 'on');
-      } else {
-        $this.parents('.label_layer').addClass('hover_label_spinner');
-      }
-
-      $.ajax({
-        url: this.href + fav,
-        dataType: 'json',
-        success: function (json) {
-          if (json.updated) {
-            Ensembl.EventManager.triggerSpecific('changeConfiguration', 'modal_config_' + config, update[0], update[1]);
-            Ensembl.EventManager.trigger('reloadPage', panel.id);
-          }
-        }
-      });
-      
-      $this = null;
-
-      return false;
-    }).end().find('input._copy_url').on('click focus blur', function(e) {
-      $(this).val(this.defaultValue).select().parents('.label_layer').toggleClass('hover', e.type !== 'blur');
-    });
+    // initialise content inside hover labels
+    this.initHoverLabels();
   },
 
   positionLayers: function() {
@@ -500,14 +496,96 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       var area  = $this.data('area');
 
       $this.css({
-        left:   left + area.l,
-        top:    top + area.t,
+        left:   left + area.l + 1,
+        top:    top + area.t + 1,
         height: area.b - area.t,
         width:  area.r - area.l
       });
 
       area = $this = null;
     });
+  },
+
+  initHoverLabels: function () {
+    var panel = this;
+
+    this.elLk.hoverLabels.each(function() {
+
+      // init the tab styled icons inside the hover menus
+      $(this).find('._hl_icon').removeClass('_hl_icon').tabs($(this).find('._hl_tab')).end()
+
+      // init the header/pin icon that holds the hover label if clicked
+      .find('._hl_pin').off().on('click', function () {
+        $(this).toggleClass('on').closest('._label_layer').toggleClass('pinned', $(this).hasClass('on'));
+      }).end()
+
+      // init the extend icon to drag-change hover label's width
+      .find('._hl_extend').off().on({
+        click: function (e) {
+          e.stopPropagation() // prevent click on the header/pin
+        },
+        mousedown: function (e) {
+          e.preventDefault(); // this is to prevent any text selection when mouse moves
+          var hoverLabel = $(this).closest('.hover_label');
+          $(document).on('mousemove.resizeHoverLabel', { hoverLabel: hoverLabel, startX: e.pageX, startW: hoverLabel.width() }, function (e) {
+            e.data.hoverLabel.css('width', Math.max(300, Math.min(Ensembl.cookie.get('ENSEMBL_WIDTH') - 300, e.data.startW + e.pageX - e.data.startX)));
+          }).on('mouseup.resizeHoverLabel', function () {
+            $(document).off('.resizeHoverLabel');
+          });
+        }
+      });
+    })
+
+    // init config tab, fav icon and close icon
+    .find('a.config').off().on('click', function (e) {
+      e.preventDefault();
+
+      if ($(this).parent().hasClass('current')) {
+        return;
+      }
+
+      var config  = this.rel;
+      var update  = this.href.split(';').reverse()[0].split('='); // update = [ trackId, renderer ]
+      var fav     = '';
+      var $this   = $(this);
+
+      if ($this.hasClass('favourite')) {
+        fav = $this.hasClass('selected') ? 'off' : 'on';
+        Ensembl.EventManager.trigger('changeFavourite', update[0], fav === 'on');
+      } else {
+        $this.parents('._label_layer').addClass('hover_label_spinner');
+      }
+
+      $.ajax({
+        url: this.href + fav,
+        dataType: 'json',
+        success: function (json) {
+          if (json.updated) {
+            panel.changeConfiguration(config, update[0], update[1]);
+          }
+        }
+      });
+
+      $this = null;
+    }).end()
+
+    // while url input is focused, don't hide the hover label
+    .find('input._copy_url').off().on('click focus blur', function(e) {
+      $(this).val(this.defaultValue).select().closest('._label_layer').toggleClass('focused', e.type !== 'blur');
+    });
+  },
+
+  changeConfiguration: function (config, trackName, renderer) {
+    Ensembl.EventManager.triggerSpecific('changeConfiguration', 'modal_config_' + config, trackName, renderer);
+
+    if (renderer === 'off') {
+      if (this.removeTrack(trackName)) {
+        return;
+      }
+    }
+
+    Ensembl.EventManager.trigger('reloadPage', this.id);
+    Ensembl.EventManager.trigger('partialReload');
   },
   
   makeResizable: function () {
@@ -574,6 +652,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         for (var j = lis.length - 1; j >= 0; j--) {
           if (lis[j].top <= this.t + i && lis[j].bottom >= this.b - i) {
             lis[j].areas.push(this);
+            this.assigned = true;
             break assignArea;
           }
         }
@@ -605,6 +684,46 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         $(this.parentNode).stop().animate({opacity: 1}, 200);
       }
     });
+
+    // split img into two image to show top and bottom of the image separately
+    this.elLk.img2 = this.elLk.img.wrap('<div>').parent().css({overflow: 'hidden', height: wrapperTop}).clone().insertAfter(this.elLk.img.parent()).css({height: 'auto'}).find('img').css({marginTop: -wrapperTop});
+  },
+
+  removeTrack: function (trackName) {
+    var panel = this;
+
+    if (!this.elLk.img2) {
+      return false;
+    }
+
+    //remove track and areas and get the height of the removed tracks
+    var heightChange = 0;
+    this.el.find('li.' + trackName).each(function() {
+      var li    = $(this);
+      var areas = li.data('areas');
+
+      panel.areas = $.grep(panel.areas, function (a) {
+        return $.inArray(a, areas) === -1;
+      });
+
+      heightChange += parseInt(li.css('height'));
+      li = null;
+
+    }).remove();
+
+    // remove hover labels
+    this.elLk.labelLayers = this.elLk.labelLayers.has('.' + trackName).remove().end().filter(function() { return !!this.parentNode; });
+
+    // now reduce the height of the img to make sure the LIs still completely overlap the img
+    this.elLk.img2.css('marginTop', parseInt(this.elLk.img2.css('marginTop')) - heightChange);
+
+    this.positionAreas(-heightChange);
+    this.positionLayers();
+    this.removeShare();
+    this.highlightImage(this.imageNumber, 0);
+    this.markLocation(Ensembl.markedLocation);
+
+    return true;
   },
 
   sortStart: function (e, ui) {
@@ -691,7 +810,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     });
   },
 
-  positionAreas: function () {
+  positionAreas: function (change) {
     var tracks = this.elLk.boundaries.children();
 
     tracks.each(function (i) {
@@ -713,6 +832,17 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       li = null;
     });
 
+    if (change) {
+      $.each(this.areas, function (i, area) {
+        if (area.a.klass.drag) {
+          area.b += change;
+        } else if (area.a.klass.label && !area.assigned) {
+          area.t += change;
+          area.b += change;
+        }
+      });
+    }
+
     tracks = null;
   },
 
@@ -730,13 +860,34 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     this.dragRegion = this.getArea(this.dragCoords.map, true);
     
     if (this.dragRegion) {
-      this.mousemove = function (e2) {
+      this.mousemove = function (e1, e2) {
         panel.dragging = e; // store mousedown event
-        panel.drag(e2);
+        panel.drag(e2 || e1);
         return false;
       };
       
       this.elLk.drag.on('mousemove', this.mousemove);
+
+      $(document).on('keyup.exitOnEsc', function(e) {
+        if (e.which === 27) { // Escape key
+          panel.newLocation = false;
+          if (panel.panning) {
+            panel.dragStop();
+          }
+        }
+      });
+
+      this.altKeyDragging = e.altKey || e.shiftKey || e.metaKey;
+
+      if (this.altKeyDragging) {
+        this.setPanning(!this.panning);
+      }
+
+      if (this.panning) {
+        this.selectArea(false);
+        this.removeZMenus();
+        this.elLk.hoverLayers.hide();
+      }
     }
   },
   
@@ -746,9 +897,18 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     if (this.mousemove) {
       this.elLk.drag.off('mousemove', this.mousemove);
       this.mousemove = false;
+
+      $(document).off('.exitOnEsc');
+
+      if (this.altKeyDragging) {
+        this.setPanning(!this.panning);
+      }
     }
     
     if (this.dragging !== false) {
+
+      this.elLk.hoverLayers.show();
+
       if (this.elLk.boundariesPanning) {
 
         this.dragging = false;
@@ -759,6 +919,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         if (!this.newLocation) {
           this.elLk.boundariesPanning.parent().remove();
           this.elLk.boundariesPanning = false;
+          this.markLocation(Ensembl.markedLocation);
           return;
         }
 
@@ -795,6 +956,21 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     }
   },
 
+  setPanning: function (flag) {
+    if (this.panningAllowed) {
+      if (typeof flag === 'undefined') {
+        flag = Ensembl.cookie.get('ENSEMBL_REGION_PAN') === '1';
+      } else {
+        Ensembl.cookie.set('ENSEMBL_REGION_PAN', flag ? '1' : '0');
+      }
+
+      this.panning = flag;
+      this.elLk.dragSwitch.toggleClass2('selected', function() {
+        return $(this).find('button').hasClass('on') ? flag : !flag;
+      });
+    }
+  },
+
   panImage: function(e) {
 
     if (!this.elLk.boundariesPanning) {
@@ -812,6 +988,7 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     if (locationDisplacement) {
       this.newLocation = this.dragRegion.range.chr + ':' + (this.dragRegion.range.start - locationDisplacement) + '-' + (this.dragRegion.range.end - locationDisplacement);
       this.elLk.boundariesPanning.helptip('option', 'content', this.newLocation).helptip('open');
+      this.markLocation(Ensembl.markedLocation, locationDisplacement);
     } else {
       this.newLocation = false;
       this.elLk.boundariesPanning.helptip('close');
@@ -843,7 +1020,11 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       Ensembl.redirect(area.a.attrs.href);
       return;
     }
-    
+
+    if (area.a.attrs.href && Ensembl.markedLocation) {
+      area.a.attrs.href = Ensembl.updateURL({mr: Ensembl.markedLocation[0]}, area.a.attrs.href);
+    }
+
     var id = 'zmenu_' + area.a.coords.join('_');
     var dragArea, range, location, fuzziness;
     
@@ -955,17 +1136,18 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
         
         link = false;
       }
-      
+
       coords = {
-        t: highlight.region.t + 2,
-        b: highlight.region.b - 2,
-        l: ((start - highlight.region.range.start) / highlight.region.range.scale) + highlight.region.l,
-        r: ((end   - highlight.region.range.start) / highlight.region.range.scale) + highlight.region.l
+        t: Math.round(highlight.region.t + 2),
+        b: Math.round(highlight.region.b - 2),
+        l: Math.round(((start - highlight.region.range.start) / highlight.region.range.scale) + highlight.region.l),
+        r: Math.round(((end   - highlight.region.range.start) / highlight.region.range.scale) + highlight.region.l)
       };
-      
+
       // Highlight unless it's the bottom image on the page
       if (this.params.highlight) {
-        this.updateExportMenu(coords, speciesNumber, imageNumber);
+        this.boxCoords[speciesNumber] = coords;
+        this.updateExportMenu();
         this.highlight(coords, 'redbox2', speciesNumber, i);
       }
     }
@@ -1006,6 +1188,8 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     if (typeof speciesNumber !== 'undefined') {
       els.addClass(originalClass);
     }
+
+    this.selectArea(false);
     
     els = null;
   },
@@ -1045,13 +1229,15 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
       coords.b = this.dragRegion.b;
     }
 
+    this.elLk.selector.css({ left: coords.l, top: coords.t, width: coords.r - coords.l + 1, height: coords.b - coords.t - 1 }).show();
+  },
+
+  initSelector: function () {
     if (!this.elLk.selector || !this.elLk.selector.length) {
       this.elLk.selector = $('<div class="_selector selector"></div>').insertAfter(this.elLk.img).toggleClass('vertical', this.vertical).filter(':not(.vertical)')
         .append('<div class="left-border"></div><div class="right-border"></div>').end();
       this.activateSelector();
     }
-
-    this.elLk.selector.css({ left: coords.l, top: coords.t, width: coords.r - coords.l + 1, height: coords.b - coords.t - 1 }).show();
   },
 
   activateSelector: function() {
@@ -1104,23 +1290,133 @@ Ensembl.Panel.ImageMap = Ensembl.Panel.Content.extend({
     }).end();
   },
 
-  updateExportMenu: function(coords, speciesNumber, imageNumber) {
+  markLocation: function (r, offset) {
     var panel = this;
+    var start, end;
 
-    if (this.imageNumber === imageNumber) {
+    offset = offset || 0;
 
-      this.boxCoords[speciesNumber] = coords;
+    // not for vertical or multi species images
+    if (this.vertical || this.multi) {
+      return;
+    }
 
-      this.elLk.exportMenu.find('a').each(function() {
-        var href = $(this).data('href');
-        if (!href) {
-          $(this).data('href', this.href);
-          href = this.href;
+    // if image box is not interactive
+    if (!this.locationMarkingArea) {
+      return;
+    }
+
+    // create the marked area div
+    if (!this.elLk.markedLocation) {
+      this.elLk.markedLocation = $('<div class="selector mrselector"><div class="mrselector-close">X</div></div>').hide().insertAfter(this.elLk.selector)
+        .find('div').helptip({content: 'Clear marked region'}).on('click mousedown', function(e) {
+          e.stopPropagation();
+          if (e.type === 'click') {
+            Ensembl.markLocation(false);
+          }
+        })
+      .end();
+    }
+
+    // create the marker button
+    if (!this.elLk.markerButton) {
+      this.elLk.markerButton = $('<a class="mr-reset outside">').hide().appendTo(this.elLk.toolbars).helptip().on({
+        'refreshTip': function () {
+          $(this).helptip('option', 'content', this.className.match(/outside/) ? 'Jump to the marked region' : (this.className.match(/selected/) ? 'Clear marked region' : 'Reinstate marked region'))
+        },
+        'click': function (e) {
+          e.preventDefault();
+          if (this.className.match('selected')) {
+            Ensembl.markLocation(false);
+          } else if (this.className.match(/outside/)) {
+            var mr      = Ensembl.getMarkedLocation() || Ensembl.lastMarkedLocation;
+            var length  = panel.locationMarkingArea.range.end - panel.locationMarkingArea.range.start; // preserve the scale
+            var centre  = (mr[2] + mr[3]) / 2;
+            Ensembl.markLocation(mr);
+            Ensembl.updateLocation(mr[1] + ':' + Math.max(1, Math.round(centre - length / 2)) + '-' + Math.round(centre + length / 2));
+          } else {
+            Ensembl.markLocation(Ensembl.lastMarkedLocation);
+          }
         }
-
-        this.href = href + ';box=' + encodeURIComponent(JSON.stringify(panel.boxCoords));
       });
     }
+
+    // if clearing the marked area
+    if (r === false) {
+      this.elLk.markedLocation.hide();
+      this.elLk.markerButton.removeClass('selected').trigger('refreshTip').show();
+      this.updateExportMenu();
+      return;
+    }
+
+    // if r is null or undefined - no param in the url
+    if (!r) {
+      return;
+    }
+
+    // remove image selector if any
+    this.selectArea(false);
+
+    // calculate start and end of the current image
+    start = this.locationMarkingArea.range.start - offset;
+    end   = this.locationMarkingArea.range.end - offset;
+
+    // display the marked region if it overlaps the current region
+    if (this.locationMarkingArea.range.chr === r[1] && (start > r[2] && start < r[3] || end > r[2] && end < r[3] || start <= r[2] && end >= r[3])) {
+
+      this.elLk.markedLocation.css({
+        left:   this.locationMarkingArea.l + Math.max(r[2] - start, 0) / this.locationMarkingArea.range.scale,
+        width:  (Math.min(end, r[3] + 1) - Math.max(r[2], start)) / this.locationMarkingArea.range.scale - 1,
+        top:    this.locationMarkingArea.t,
+        height: this.locationMarkingArea.b - this.locationMarkingArea.t
+      }).show();
+
+      this.elLk.markerButton.addClass('selected').removeClass('outside').trigger('refreshTip').show();
+
+    } else {
+      this.elLk.markedLocation.hide();
+      if (this.panningAllowed) {
+        this.elLk.markerButton.addClass('outside').removeClass('selected').trigger('refreshTip').show();
+      } else {
+        this.elLk.markerButton.hide();
+      }
+    }
+
+    this.updateExportMenu();
+  },
+
+  updateExportMenu: function() {
+    var extra = this.getExportMenuExtra();
+
+    extra = $.isEmptyObject(extra) ? false : encodeURIComponent(JSON.stringify(extra));
+
+    this.elLk.exportMenu.find('a').attr('href', function() {
+      return Ensembl.updateURL({extra: extra}, this.href);
+    });
+  },
+
+  getExportMenuExtra: function () {
+    var extra = {};
+
+    if (!$.isEmptyObject(this.boxCoords)) {
+      extra.boxes = this.boxCoords;
+    }
+
+    if (Ensembl.markedLocation && this.locationMarkingArea) {
+      extra.mark = {
+        x: Math.round((Ensembl.markedLocation[2] - this.locationMarkingArea.range.start) / this.locationMarkingArea.range.scale + this.locationMarkingArea.l),
+        y: this.locationMarkingArea.t,
+        w: Math.round((Ensembl.markedLocation[3] - Ensembl.markedLocation[2]) / this.locationMarkingArea.range.scale),
+        h: this.locationMarkingArea.b - this.locationMarkingArea.t
+      };
+
+      if (extra.mark.x < this.locationMarkingArea.l) {
+        extra.mark.w = extra.mark.w - this.locationMarkingArea.l + extra.mark.x;
+        extra.mark.x = this.locationMarkingArea.l;
+      }
+    }
+
+    return extra;
   },
 
   getMapCoords: function (e) {

@@ -70,20 +70,48 @@ sub content {
         $self->thousandify($object->seq_region_start),
         $self->thousandify($object->seq_region_end)
       ),
+      link_class => '_location_change _location_mark',
       link  => $hub->url({
         type   => 'Location',
         action => 'View',
         r      => $object->seq_region_name . ':' . $object->seq_region_start . '-' . $object->seq_region_end
       })
     });
-  }   
+  }
   
   $self->add_entry({
     type  => 'Transcript',
     label => $stable_id, 
     link  => $hub->url({ type => 'Transcript', action => 'Summary' })
   });
-  
+ 
+  if (scalar @click) {
+    ## Has user clicked on an exon (or exons)?
+    my @exons;
+
+    foreach (@{$transcript->get_all_Exons}) {
+      my $start     = $_->start;
+      my ($i1, $i2) = sort { $a <=> $b } $start, $_->end, $click[1], $click[2];
+
+      if ($i1 == $start && $i2 == $click[1] || $i2 == $start && $i1 == $click[1]) { # if click coords overlap with exon coords
+        push @exons, $_->stable_id;
+      }
+    }
+
+    ## Only link to individual exons if the user has clicked squarely
+    ## on an exon (i.e. ignore when zoomed out or exons are tiny)
+    for (@exons) {
+      next unless $_; # eg Genscan
+      $self->add_entry({
+        type  => ' ',
+        label => "Exons", #!$self->{'_exon_count'} ? @exons > 1 ? 'Exons' : 'Exon' : ' ',
+        link  => $hub->url({ type => 'Transcript', action => 'Exons', exon => $_ })
+      });
+      $self->{'_exon_count'}++;
+    }
+  }
+
+ 
   $self->add_entry({
     type  => ' ',
     label => 'cDNA Sequence',
@@ -105,32 +133,6 @@ sub content {
       label => 'Protein Variations',
       link  => $self->hub->url({ type => 'Transcript', action => 'ProtVariations' }),
     });
-  }  
-
-  if (scalar @click) {
-    ## Has user clicked on an exon (or exons)?
-    my @exons;
-    
-    foreach (@{$transcript->get_all_Exons}) {
-      my $start     = $_->start;
-      my ($i1, $i2) = sort { $a <=> $b } $start, $_->end, $click[1], $click[2];
-
-      if ($i1 == $start && $i2 == $click[1] || $i2 == $start && $i1 == $click[1]) { # if click coords overlap with exon coords
-        push @exons, $_->stable_id;
-      }
-    }
-    
-    ## Only link to individual exons if the user has clicked squarely
-    ## on an exon (i.e. ignore when zoomed out or exons are tiny)
-    for (@exons) {
-      next unless $_; # eg Genscan
-      $self->add_entry({
-        type  => !$self->{'_exon_count'} ? @exons > 1 ? 'Exons' : 'Exon' : ' ',
-        label => $_,
-        link  => $hub->url({ type => 'Transcript', action => 'Exons', exon => $_ })
-      });
-      $self->{'_exon_count'}++;
-    }
   }  
 
   $self->add_entry({
@@ -165,10 +167,10 @@ sub content {
   }
 
   if ($object->analysis) {
-    my $label = $transcript->analysis->display_label . ' Transcript';
+    my $analysis = $transcript->analysis;
     $self->add_entry({
-      type  => 'Source',
-      label => $label
+      type        => 'Source',
+      label_html  => $self->helptip($analysis->display_label, $analysis->description)
     });
   }
   my $alt_allele_link = $object->get_alt_allele_link('Location');

@@ -27,21 +27,24 @@ use Text::ParseWords;
 use EnsEMBL::Web::File::Utils::URL qw(get_filesize);
 
 sub new {
-  my ($proto,$hub,$format,$url,$trackline) = @_;
+  my ($proto, %args) = @_;
   my $class = ref($proto) || $proto;
-  my $self = {
-    format => $format,
-    hub => $hub,
-    url => $url,
-    trackline => $trackline,
-  };
+  my $self = \%args;
   bless $self,$class;
   return $self;
 }
 
 sub url       { return shift->{'url'} }
-sub name      { shift->{'format'} }
 sub trackline { shift->{'trackline'} }
+
+sub name {
+  my $self = shift;
+  unless ($self->{'format'}) {
+    my @namespace = split('::', ref($self));
+    $self->{'format'} = $namespace[-1];
+  }
+  return $self->{'format'};
+}
 
 sub extra_config_page { return undef; }
 
@@ -54,15 +57,16 @@ sub check_data {
   $url = "http://$url" unless $url =~ /^http|^ftp/;
 
   ## Check file size
-  my $feedback = get_filesize($url, {'hub' => $self->{'hub'}});
+  my $feedback = get_filesize($url, {'hub' => $self->{'hub'}, 'nice' => 1});
 
   if ($feedback->{'error'}) {
-    if ($feedback->{'error'} eq 'timeout') {
+    my $errors = ref($feedback->{'error'}) eq 'ARRAY' ? join('; ', @{$feedback->{'error'}}) : $feedback->{'error'};
+    if ($errors eq 'timeout') {
       $error = 'No response from remote server';
-    } elsif ($feedback->{'error'} eq 'mime') {
+    } elsif ($errors eq 'mime') {
       $error = 'Invalid mime type';
     } else {
-      $error = "Unable to access file. Server response: $feedback->{'error'}";
+      $error = "Unable to access file. Server response: $errors";
     }
   } elsif (defined $feedback->{'filesize'} && $feedback->{'filesize'} == 0) {
     $error = 'File appears to be empty';

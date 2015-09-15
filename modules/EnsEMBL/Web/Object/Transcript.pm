@@ -56,6 +56,7 @@ sub availability {
       $availability->{'history_protein'} = 1 if $trans_id || $trans >= 1;
     } elsif( $obj->isa('Bio::EnsEMBL::PredictionTranscript') ) {
       $availability->{'either'} = 1;
+      $availability->{'translation'} = 1;
     } else {
       my $counts = $self->counts;
       my $rows   = $self->table_info($self->get_db, 'stable_id_event')->{'rows'};
@@ -65,6 +66,7 @@ sub availability {
       $availability->{'core'}            = $self->get_db eq 'core';
       $availability->{'either'}          = 1;
       $availability->{'transcript'}      = 1;
+      $availability->{'not_pred'}        = 1;
       $availability->{'domain'}          = 1;
       $availability->{'translation'}     = !!$obj->translation;
       $availability->{'strains'}         = !!$self->species_defs->databases->{'DATABASE_VARIATION'}->{'#STRAINS'} if $self->species_defs->databases->{'DATABASE_VARIATION'};
@@ -489,6 +491,13 @@ sub get_frameshift_introns {
   $frameshift_introns =~ s/,\s+$//;
   
   return $frameshift_introns;
+}
+
+sub get_trans_spliced_transcript_info {
+    my $self = shift;
+    my $trans_spliced_transcript_info = $self->Obj->get_all_Attributes('trans_spliced');
+
+    return $trans_spliced_transcript_info->[0];
 }
 
 sub get_domain_genes {

@@ -40,11 +40,11 @@ sub ICON_MAPPINGS {
     'search'        => { 'file' => 'search.png',          'alt' => 'search',      'title' => "Search this $component"             },
     'download'      => { 'file' => 'download.png',        'alt' => 'download',    'title' => "Download data from this $component" },
     'image'         => { 'file' => 'picture.png',         'alt' => 'image',       'title' => "Export this image"                  },
-    'userdata'      => { 'file' => 'page-user.png',       'alt' => 'data',        'title' => "Manage your custom tracks"          },
+    'userdata'      => { 'file' => 'page-user.png',       'alt' => 'data',        'title' => "Manage your data"                   },
     'share'         => { 'file' => 'share.png',           'alt' => 'share',       'title' => "Share this $component"              },
-    'reset_config'  => { 'file' => 'settings-reset.png',  'alt' => 'reset config', 'title' => "Reset configuration"               },
-    'reset_order'   => { 'file' => 'order-reset.png',     'alt' => 'reset order', 'title' => "Reset track order"                },
-    'resize'        => { 'file' => 'image_resize.png',    'alt' => 'resize image', 'title' => "Resize this image"                },
+    'reset_config'  => { 'file' => 'settings-reset.png',  'alt' => 'reset config','title' => "Reset configuration"                },
+    'reset_order'   => { 'file' => 'order-reset.png',     'alt' => 'reset order', 'title' => "Reset track order"                  },
+    'resize'        => { 'file' => 'image_resize.png',    'alt' => 'resize image','title' => "Resize this image"                  },
   };
 }
 
@@ -62,6 +62,25 @@ sub PARSER_FORMATS {
     'psl'       => {'class' => 'Psl',     'ext' => 'psl'},
     'evf'       => {'class' => 'VEP_input', 'ext' => 'evf'},
     'wig'       => {'class' => 'Wig',     'ext' => 'wig'},
+  };
+}
+
+sub USERDATA_FORMATS {
+  return {
+    'bam'       => {'ext' => 'bam', 'label' => 'BAM',       'display' => 'graph',   'limit' => 'remote'},
+    'bed'       => {'ext' => 'bed', 'label' => 'BED',       'display' => 'feature'},
+    'bedgraph'  => {'ext' => 'bed', 'label' => 'bedGraph',  'display' => 'graph'},
+    'bigbed'    => {'ext' => 'bb',  'label' => 'BigBed',    'display' => 'graph',   'limit' => 'remote'},
+    'bigwig'    => {'ext' => 'bw',  'label' => 'BigWig',    'display' => 'graph',   'limit' => 'remote'},
+    'gene_list' => {'ext' => 'txt', 'label' => 'Gene or feature list', 'display' => 'feature'},
+    'gff'       => {'ext' => 'gff', 'label' => 'GFF',       'display' => 'feature'},
+    'gtf'       => {'ext' => 'gtf', 'label' => 'GTF',       'display' => 'feature'},
+    'pairwise'  => {'ext' => 'txt', 'label' => 'Pairwise interactions', 'display' => 'feature'},
+    'psl'       => {'ext' => 'psl', 'label' => 'PSL',       'display' => 'feature'},
+    'trackhub'  => {'ext' => 'txt', 'label' => 'Track Hub', 'display' => 'graph',   'limit' => 'remote'},
+    'vcf'       => {'ext' => 'vcf', 'label' => 'VCF',       'display' => 'graph'},
+    'vep_input' => {'ext' => 'txt', 'label' => 'VEP',       'display' => 'feature'},
+    'wig'       => {'ext' => 'wig', 'label' => 'WIG',       'display' => 'graph'},
   };
 }
 
@@ -222,6 +241,12 @@ sub MARKUP_OPTIONS {
       name  => 'exons_only',
       value => 'on',
     },
+    'exons_case' => {
+      type  => 'CheckBox',
+      label => 'Show exons as alternating upper/lower case',
+      name  => 'exons_case',
+      value => 'on',
+    },
     'line_numbering' => {
       'type'   => 'DropDown', 
       'select' => 'select',
@@ -248,7 +273,7 @@ sub MARKUP_OPTIONS {
       'type'   => 'DropDown', 
       'select' => 'select',
       'name'   => 'population_filter',
-      'label'  => 'Filter variations by population',
+      'label'  => 'Filter variants by population',
       'notes'  => 'Warning: This could cause the page to take a long time to load',
       'values' => [{ 'value' => 'off', 'caption' => 'None' }]
     },
@@ -264,14 +289,14 @@ sub MARKUP_OPTIONS {
       'size'     => 5,
       'select'   => 'select',
       'name'     => 'consequence_filter',
-      'label'    => 'Filter variations by consequence type',
+      'label'    => 'Filter variants by consequence type',
       'values'   => [{ 'value' => 'off', 'caption' => 'No filter' }]
     },
     'hide_long_snps' => {
       'type'   => 'Checkbox', 
       'select' => 'select',
       'name'   => 'hide_long_snps',
-      'label'  => 'Hide variations longer than 10bp',
+      'label'  => 'Hide variants longer than 10bp',
       'value'  => 'on',
     },
     ### GENE-SPECIFIC TEXT SEQUENCE
@@ -365,7 +390,7 @@ sub GENERAL_MARKUP_OPTIONS {
       'type'   => 'DropDown',
       'select' => 'select',
       'name'   => 'snp_display',
-      'label'  => 'Show variations',
+      'label'  => 'Show variants',
       'values' => [
         { 'value' => 'off', 'caption' => 'No'  },
         { 'value' => 'yes', 'caption' => 'Yes' },
@@ -397,7 +422,7 @@ sub GENERAL_MARKUP_OPTIONS {
       'type'   => 'DropDown',
       'select' => 'select',
       'name'   => 'population_filter',
-      'label'  => 'Filter variations by population',
+      'label'  => 'Filter variants by population',
       'notes'  => 'Warning: This could cause the page to take a long time to load',
       'values' => [{ 'value' => 'off', 'caption' => 'None' }]
     },
@@ -413,14 +438,14 @@ sub GENERAL_MARKUP_OPTIONS {
       'size'     => 5,
       'select'   => 'select',
       'name'     => 'consequence_filter',
-      'label'    => 'Filter variations by consequence type',
+      'label'    => 'Filter variants by consequence type',
       'values'   => [{ 'value' => 'off', 'caption' => 'No filter' }]
     },
     'hide_long_snps' => {
       'type'   => 'DropDown',
       'select' => 'select',
       'name'   => 'hide_long_snps',
-      'label'  => 'Hide variations longer than 10bp',
+      'label'  => 'Hide variants longer than 10bp',
       'values' => [
         { 'value' => 'yes', 'caption' => 'Yes' },
         { 'value' => 'off', 'caption' => 'No'  },
@@ -529,7 +554,7 @@ sub VARIATION_OPTIONS {
       'opt_class_deletion'               =>  [ 'on', 'Deletions'              ],
       'opt_class_indel'                  =>  [ 'on', 'In-dels'                ],
       'opt_class_snp'                    =>  [ 'on', 'SNPs'                   ],
-      'opt_class_cnv'                    =>  [ 'on', 'Copy number variations' ],
+      'opt_class_cnv'                    =>  [ 'on', 'Copy number variants' ],
       'opt_class_substitution'           =>  [ 'on', 'Substitutions'          ],
       'opt_class_tandem_repeat'          =>  [ 'on', 'Tandem repeats'         ],
       'opt_class_'                       =>  [ 'on', 'Unclassified'           ],
@@ -538,7 +563,7 @@ sub VARIATION_OPTIONS {
       'opt_class_somatic_deletion'       =>  [ 'on', 'Somatic deletions'              ],
       'opt_class_somatic_indel'          =>  [ 'on', 'Somatic in-dels'                ],
       'opt_class_somatic_snv'            =>  [ 'on', 'Somatic SNVs'                   ],
-      'opt_class_somatic_cnv'            =>  [ 'on', 'Somatic copy number variations' ],
+      'opt_class_somatic_cnv'            =>  [ 'on', 'Somatic copy number variants' ],
       'opt_class_somatic_substitution'   =>  [ 'on', 'Somatic substitutions'          ],
       'opt_class_somatic_tandem_repeat'  =>  [ 'on', 'Somatic tandem repeats'         ],
       'opt_class_somatic_'               =>  [ 'on', 'Unclassified somatic mutations' ],
@@ -652,6 +677,36 @@ sub USERDATA_MESSAGES {
       'type'    => 'warning', 
       'title'   => 'Script aborted',
       'message' => 'The region(s) you selected are too large and will return too much data for the web interface to cope with.'
+    },
+    hub_ok => {
+      'type'    => 'info', 
+      'title'   => 'Hub attached',
+      'message' => 'Your hub attached successfully.',
+    },
+    hub_old_only => {
+      'type'    => 'error', 
+      'title'   => 'Track hub problem',
+      'message' => 'This hub contains no data on any current assemblies. Please check our <a href="/info/website/archives/">archive list</a> for alternative sites.',
+    },
+    hub_old_and_new => {
+      'type'    => 'warning', 
+      'title'   => 'Multiple assemblies',
+      'message' => 'Your hub includes multiple assemblies, so not all features will be shown. Alternative assemblies may available on archive sites.',
+    },
+    hub_other_only => {
+      'type'    => 'warning', 
+      'title'   => 'No data on this species',
+      'message' => 'Your hub contains no data on the chosen species.</p>',
+    },
+    hub_preconfig => {
+      'type'    => 'info', 
+      'title'   => 'Hub already attached',
+      'message' => 'This is a preconfigured hub, so you cannot reattach it.',
+    },
+    hub_user => {
+      'type'    => 'info', 
+      'title'   => 'Hub already attached',
+      'message' => 'You have already attached this hub.'
     },
   );
 }

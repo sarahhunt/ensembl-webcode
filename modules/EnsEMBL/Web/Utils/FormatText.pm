@@ -22,7 +22,7 @@ package EnsEMBL::Web::Utils::FormatText;
 
 use base qw(Exporter);
 
-our @EXPORT = our @EXPORT_OK = qw(date_format pretty_date);
+our @EXPORT = our @EXPORT_OK = qw(date_format pretty_date add_links);
 
 sub date_format {
 ### Generic method for formatting a unix timestamp, according to a simple format
@@ -48,6 +48,19 @@ sub pretty_date {
   my @days = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
   my @months = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
   return $days[$date[6]].' '.$date[3].' '.$months[$date[4]].', '.($date[5] + 1900);
+}
+
+sub add_links {
+### Wrap URLs in <a> tags
+### @param string - String (hopefully containing at least one URL!)
+### @return html - String
+  my $string = shift;
+  
+  ## regex from http://blog.mattheworiordan.com/post/13174566389/url-regular-expression-for-links-with-or-without-the
+  my $url_regex   = qr/((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/;
+  my $html = join ' ', map {$_ =~ $url_regex ? qq(<a href="$_">$_</a>) : $_ } split(/\s/, $string);
+
+  return $html;
 }
 
 1;

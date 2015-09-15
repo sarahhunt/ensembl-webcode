@@ -95,12 +95,18 @@ sub new {
 
   bless $self, $class;
   
-  $self->session = EnsEMBL::Web::Session->new($self, $args->{'session_cookie'});
+  $self->init_session($args->{'session_cookie'});
   $self->timer ||= $ENSEMBL_WEB_REGISTRY->timer if $ENSEMBL_WEB_REGISTRY;
   
   $self->set_core_params;
   
   return $self;
+}
+
+sub init_session {
+  my ($self, $cookie) = @_;
+
+  $self->session = EnsEMBL::Web::Session->new($self, $cookie);
 }
 
 # Accessor functionality
@@ -161,7 +167,7 @@ sub get_cookie_value {
 sub get_cookie {
   my ($self, $name, $is_encrypted) = @_;
   my $cookies = $self->cookies;
-  $cookies->{$name} = EnsEMBL::Web::Cookie->retrieve($self->apache_handle, {'name' => $name, 'encrypted' => $is_encrypted}) if $cookies->{$name} && $cookies->{$name}->encrypted eq !$is_encrypted;
+  $cookies->{$name} = EnsEMBL::Web::Cookie->retrieve($self->apache_handle, {'name' => $name, 'encrypted' => $is_encrypted}) unless $cookies->{$name} && $cookies->{$name}->encrypted eq ($is_encrypted || 0);
   return $cookies->{$name};
 }
 
@@ -431,6 +437,7 @@ sub url {
   delete $pars{'t'}  if $params->{'pt'};
   delete $pars{'pt'} if $params->{'t'};
   delete $pars{'t'}  if $params->{'g'} && $params->{'g'} ne $pars{'g'};
+  delete $pars{'v'}  if $params->{'vf'};
   delete $pars{'time'};
   delete $pars{'expand'};
 
@@ -898,6 +905,37 @@ sub is_new_regulation_pipeline { # Regulation rewrote their pipeline
   }
   $self->{'is_new_pipeline'}{$species} = $new;
   return $new;
+}
+
+sub _source_url {
+  my ($url,$type,$params) = @_;
+
+  my @x = split(/###/,$url,-1);
+  my @y;
+  while(@x) {
+    push @y,(shift @x);
+    next unless @x;
+    local $_ = shift @x;
+    if(s/^(.*)=(.*)$/$1/) {
+      my $pred = $2;
+      return undef if $params->{$_} !~ /$pred/;
+    }
+    push @y,$params->{$_};
+  }
+  return join('',@y);
+}
+
+sub source_url {
+  my ($self,$type,$params) = @_;
+
+  my $urls = $self->species_defs->ENSEMBL_EXTERNAL_URLS->{uc $type};
+  return undef unless $urls;
+  $urls = [$urls] unless ref($urls) eq 'ARRAY';
+  foreach my $url (@$urls) {
+    my $ret = _source_url($url,$type,$params);
+    return $ret if $ret;
+  }
+  return undef;
 }
 
 1;

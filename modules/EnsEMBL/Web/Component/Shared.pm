@@ -27,6 +27,7 @@ use base qw(EnsEMBL::Web::Component);
 
 use HTML::Entities  qw(encode_entities);
 use Text::Wrap      qw(wrap);
+use List::Util      qw(first);
 use List::MoreUtils qw(uniq first_index);
 
 sub coltab {
@@ -64,20 +65,18 @@ sub transcript_table {
     </a>',
     $show ? 'open' : 'closed'
   );
-  
 
   if ($description) {
 
-    my $link = $self->get_gene_display_link('[LINK]'); # [LINK] will get replaced by the external id later on
+    my ($url, $xref) = $self->get_gene_display_link($object->gene, $description);
 
-    if ($link) {
-      my $link_id   = $link->{'id'};
-      $link         = $link->{'link'} =~ s/\[LINK\]/$link_id/r;
-      $description  =~ s/$link_id/$link/;
+    if ($xref) {
+      $xref        = $xref->primary_id;
+      $description =~ s|$xref|<a href="$url" class="constant">$xref</a>|;
     }
-    
+
     $table->add_row('Description', $description);
-  }  
+  }
 
   my $location    = $hub->param('r') || sprintf '%s:%s-%s', $object->seq_region_name, $object->seq_region_start, $object->seq_region_end;
 
@@ -152,6 +151,11 @@ sub transcript_table {
 
   $location_html = "<p>$location_html</p>";
 
+  my $insdc_accession = $self->object->insdc_accession if $self->object->can('insdc_accession');
+  if ($insdc_accession) {
+    $location_html .= "<p>$insdc_accession</p>";
+  }
+
   if ($page_type eq 'gene') {
     # Haplotype/PAR locations
     my $alt_locs = $object->get_alternative_locations;
@@ -180,10 +184,7 @@ sub transcript_table {
   my $gene = $object->gene;
 
   #text for tooltips
-  my $gencode_desc    = "The GENCODE set is the gene set for human and mouse. GENCODE Basic is a subset of representative transcripts (splice variants).";
-  my $trans_5_3_desc  = "5' and 3' truncations in transcript evidence prevent annotation of the start and the end of the CDS.";
-  my $trans_5_desc    = "5' truncation in transcript evidence prevents annotation of the start of the CDS.";
-  my $trans_3_desc    = "3' truncation in transcript evidence prevents annotation of the end of the CDS.";
+  my $gencode_desc    = qq(The GENCODE set is the gene set for human and mouse. <a href="/Help/Glossary?id=500" class="popup">GENCODE Basic</a> is a subset of representative transcripts (splice variants).);
   my $gene_html       = '';
   my $transc_table;
 
@@ -241,7 +242,7 @@ sub transcript_table {
         $button
       );
     }
-   
+
     ## Link to other haplotype genes
     my $alt_link = $object->get_alt_allele_link;
     if ($alt_link) {
@@ -254,7 +255,7 @@ sub transcript_table {
        { key => 'name',       sort => 'string',  title => 'Name'          },
        { key => 'transcript', sort => 'html',    title => 'Transcript ID' },
        { key => 'bp_length',  sort => 'numeric', label => 'bp', title => 'Length in base pairs'},
-       { key => 'protein',    sort => 'html',    label => 'Protein', title => 'Protein length in amino acids' },
+       { key => 'protein',sort => 'html_numeric',label => 'Protein', title => 'Protein length in amino acids' },
        { key => 'translation',sort => 'html',    title => 'Translation ID', 'hidden' => 1 },
        { key => 'biotype',    sort => 'html',    title => 'Biotype', align => 'left' },
     );
@@ -309,16 +310,8 @@ sub transcript_table {
         }
       }
       if ($trans_attribs->{$tsi}) {
-        if ($trans_attribs->{$tsi}{'CDS_start_NF'}) {
-          if ($trans_attribs->{$tsi}{'CDS_end_NF'}) {
-            push @flags, $self->helptip("CDS 5' and 3' incomplete", $trans_5_3_desc);
-          }
-          else {
-            push @flags, $self->helptip("CDS 5' incomplete", $trans_5_desc);
-          }
-        }
-        elsif ($trans_attribs->{$tsi}{'CDS_end_NF'}) {
-         push @flags, $self->helptip("CDS 3' incomplete", $trans_3_desc);
+        if (my $incomplete = $self->get_CDS_text($trans_attribs->{$tsi})) {
+          push @flags, $incomplete;
         }
         if ($trans_attribs->{$tsi}{'TSL'}) {
           my $tsl = uc($trans_attribs->{$tsi}{'TSL'} =~ s/^tsl([^\s]+).*$/$1/gr);
@@ -402,17 +395,35 @@ sub transcript_table {
     $about_count = $self->about_feature; # getting about this gene or transcript feature counts
     
   }
-  
+
   $table->add_row('Location', $location_html);
 
-  my $insdc_accession;
-  $insdc_accession = $self->object->insdc_accession if $self->object->can('insdc_accession');
-  $table->add_row('INSDC coordinates',$insdc_accession) if $insdc_accession;
-  
   $table->add_row( $page_type eq 'gene' ? 'About this gene' : 'About this transcript',$about_count) if $about_count;
   $table->add_row($page_type eq 'gene' ? 'Transcripts' : 'Gene', $gene_html) if $gene_html;
 
   return sprintf '<div class="summary_panel">%s%s</div>', $table->render, $transc_table ? $transc_table->render : '';
+}
+
+sub get_CDS_text {
+  my $self = shift;
+  my $attribs = shift;
+  my $trans_5_3_desc  = "5' and 3' truncations in transcript evidence prevent annotation of the start and the end of the CDS.";
+  my $trans_5_desc    = "5' truncation in transcript evidence prevents annotation of the start of the CDS.";
+  my $trans_3_desc    = "3' truncation in transcript evidence prevents annotation of the end of the CDS.";
+  if ($attribs->{'CDS_start_NF'}) {
+    if ($attribs->{'CDS_end_NF'}) {
+      return $self->helptip("CDS 5' and 3' incomplete", $trans_5_3_desc);
+    }
+    else {
+      return $self->helptip("CDS 5' incomplete", $trans_5_desc);
+    }
+  }
+  elsif ($attribs->{'CDS_end_NF'}) {
+    return $self->helptip("CDS 3' incomplete", $trans_3_desc);
+  }
+  else {
+    return undef;
+  }
 }
 
 # return the same columns; implemented in mobile plugin to remove some columns
@@ -562,29 +573,22 @@ sub about_feature {
 }
 
 sub get_gene_display_link {
-  my ($self, $caption) = @_;
+  ## @param Gene object
+  ## @param Gene xref object or description string
+  my ($self, $gene, $xref) = @_;
 
-  my $hub           = $self->hub;
-  my $gene          = $self->object->gene;
-  my $xref          = $gene->display_xref or return;
-  my $display_name  = $xref->display_id;
-  my $display_db    = $xref->db_display_name;
-  my $external_id   = $xref->primary_id;
-  my $prefix        = '';
+  my $hub = $self->hub;
 
-  # remove prefix from the URL for Vega External Genes
-  if ($hub->species eq 'Mus_musculus' && $gene->source eq 'vega_external') {
-    ($prefix, $display_name) = split ':', $display_name;
+  if ($xref && !ref $xref) { # description string
+    my $details = { map { split ':', $_, 2 } split ';', $xref =~ s/^.+\[|\]$//gr };
+    $xref = first { $_->primary_id eq $details->{'Acc'} && $_->db_display_name eq $details->{'Source'} } @{$gene->get_all_DBLinks};
   }
 
-  my $link = $hub->get_ExtURL_link($caption || $display_name, $xref->dbname, $external_id);
+  return unless $xref && $xref->info_type ne 'PROJECTION';
 
-  return unless $link;
+  my $url = $hub->get_ExtURL($xref->dbname, $xref->primary_id);
 
-  $link = sprintf '%s:%s', $prefix, $link if $prefix;
-  $link = $caption || $display_name if $display_db =~ /^Projected/; # just return the caption in this case
-
-  return { 'link' => $link, 'dbname' => $display_db, 'id' => $external_id };
+  return $url ? ($url, $xref) : ();
 }
 
 sub get_synonyms {

@@ -41,7 +41,10 @@ body.ie6 div.image_container { background-color: [[BUTTON_BG]]; }
 .drag_select                              { cursor: default; position: relative; }
 .drag_select.drag_select_pointer          { cursor: pointer; }
 
-.drag_select .selector                    { background-color: rgba(229, 121, 5, 0.1); position: absolute; z-index: 99; border: 1px dashed red; border-width: 1px 0; }
+.drag_select .selector                    { background-color: rgba(229, 121, 5, 0.1); position: absolute; z-index: 99; border: 1px dashed red; border-width: 1px 0; display: none; }
+.drag_select .mrselector                  { background-color: rgba(140, 100, 140, 0.1); border: rgba(140, 100, 140, 0.5) dashed 1px; pointer-events: none; }
+.drag_select .mrselector-close            { background-color: rgba(40, 0, 40, 1); border-radius: 0 0 0 4px; color: #ccc; cursor: pointer; font-size: 70%; font-weight: bold; height: 16px;
+                                            line-height: 18px; pointer-events: auto; position: absolute; right: -1px; text-align: center; top: -1px; width: 16px; }
 .drag_select .selector.vertical           { border-width: 1px; }
 .drag_select .selector .left-border,
 .drag_select .selector .right-border      { width: 4px; position: absolute; height: 100%; left: 0; border: 1px dashed red; border-width: 0 0 0 1px; cursor: ew-resize; }
@@ -56,15 +59,17 @@ body.ie6 div.image_container { background-color: [[BUTTON_BG]]; }
 .hover_layer:hover                        { background-color: #333; }
 
 .label_layer,
-.label_layer .label_layer_bg              { position: absolute; padding-right: 5px; padding-bottom: 2px; }
+.label_layer .label_layer_bg              { position: absolute; margin-left: -5px; padding-right: 5px; padding-bottom: 2px; }
 .label_layer .label_layer_bg              { width: inherit; height: inherit; margin: 0; background-color: #333; opacity: 0.1; display: none; }
 .hover_label                              { position: absolute; margin-left: 5px; padding: 0 0 4px; border: none; display: none; text-align: left; width: 450px; cursor: default; }
 .hover_label div.spinner                  { display: none; }
 .hover_label_spinner div                  { display: none; }
 .hover_label_spinner div.spinner          { display: block; }
-.label_layer.hover .label_layer_bg,
+.label_layer.focused .label_layer_bg,
+.label_layer.pinned .label_layer_bg,
 .label_layer:hover .label_layer_bg,
-.label_layer.hover .hover_label,
+.label_layer.focused .hover_label,
+.label_layer.pinned .hover_label,
 .label_layer:hover .hover_label           { display: block; }
 .hover_label.name_only                    { padding: 0; }
 .hover_label.name_only p.header           { margin: 0; }
@@ -75,7 +80,13 @@ body.ie6 div.image_container { background-color: [[BUTTON_BG]]; }
 .hover_label a.closetrack                 { background-image: url(/i/16/cross.png); }
 .hover_label a.config                     { text-decoration: none; }
 .hover_label p                            { padding: 4px 0; margin: 0; line-height: 1.5em; }
-.hover_label p.header                     { margin: 0; padding: 4px; background-color: [[BUTTON_BG]]; color: #FFF; }
+.hover_label p.header                     { margin: 0; padding: 4px; background-color: [[BUTTON_BG]]; color: #FFF; cursor: pointer; }
+.hover_label p.header span.hl-pin         { background-color: [[BUTTON_BG]]; background-image: url(/i/16/rev/pin.png); background-size: 12px auto; border: 2px solid [[BUTTON_BG]];
+                                            border-radius: 2px; float: left; height: 12px; width: 12px; margin-right: 4px; }
+.hover_label p.header.on span.hl-pin      { background-color: [[BUTTON_BG_HOVER]]; border-color: [[BUTTON_BG_HOVER]]; }
+.hover_label p.header .hl-extend          { background: transparent url("/i/16/extend.png") no-repeat right center; cursor: ew-resize; height: 16px; width: 16px; float: right; display: none; }
+.pinned .hover_label p.header .hl-extend  { display: block; }
+
 .hover_label div.config ul,
 .hover_label div.config li                { margin: 0; padding: 0; list-style: none; list-style-image: none; }
 .hover_label div.config li                { line-height: 22px; }
@@ -135,11 +146,12 @@ div.boundaries_wrapper div.boundaries_panning ul          { overflow: hidden; }
 
 /* Icon toolbar for dynamic images */
 
-div.image_toolbar        { background-color: [[BUTTON_BG]]; color: #FFFFFF; height: 16px; padding: 4px 0; overflow: hidden; }
-div.image_toolbar.top    { border-bottom: 1px solid #999999; }
-div.image_toolbar.bottom { border-top: 1px solid #999999; }
-div.image_toolbar a      { float: left; width: 16px; height: 16px; display: block; margin: -2px 2px 2px; border: [[BUTTON_BG]] solid 2px; border-radius: 2px; }
-div.image_toolbar a:hover{ border-color: [[BUTTON_BG_HOVER]]; background-color: [[BUTTON_BG_HOVER]]; }
+div.image_toolbar                 { background-color: [[BUTTON_BG]]; color: #FFFFFF; height: 16px; padding: 4px 0; overflow: hidden; }
+div.image_toolbar.top             { border-bottom: 1px solid #999999; }
+div.image_toolbar.bottom          { border-top: 1px solid #999999; }
+div.image_toolbar a               { float: left; width: 16px; height: 16px; display: block; margin: -2px 2px 2px; border: [[BUTTON_BG]] solid 2px; border-radius: 2px; cursor: pointer; }
+div.image_toolbar a:hover,
+div.image_toolbar a.selected      { border-color: [[BUTTON_BG_HOVER]]; background-color: [[BUTTON_BG_HOVER]]; }
 
 div.image_toolbar a.config        { background-image: url(/i/16/rev/setting.png);       }
 div.image_toolbar a.data          { background-image: url(/i/16/rev/page-user.png);     }
@@ -149,6 +161,8 @@ div.image_toolbar a.resize        { background-image: url(/i/16/rev/image_resize
 div.image_toolbar a.share         { background-image: url(/i/16/rev/share.png);         }
 div.image_toolbar a.order-reset   { background-image: url(/i/16/rev/order-reset.png);   }
 div.image_toolbar a.config-reset  { background-image: url(/i/16/rev/setting-reset.png); }
+div.image_toolbar a.mr-reset      { background-image: url(/i/16/rev/marker.png);        }
+div.image_toolbar a.mr-reset.outside { background-image: url(/i/16/rev/jump.png);       }
 
 /* Drag/Select switch */
 div.image_toolbar div.scroll-switch               { float: right; line-height: 16px; }

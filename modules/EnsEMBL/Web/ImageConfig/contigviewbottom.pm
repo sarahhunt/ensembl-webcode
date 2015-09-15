@@ -29,7 +29,7 @@ sub glyphset_configs {
   my $self = shift;
   
   if (!$self->{'ordered_tracks'}) {
-    $self->get_node('user_data')->after($_) for grep $_->get('datahub_menu'), $self->tree->nodes;
+    $self->get_node('user_data')->after($_) for grep $_->get('trockhub_menu'), $self->tree->nodes;
     $self->SUPER::glyphset_configs;
   }
   
@@ -42,7 +42,7 @@ sub init {
   $self->set_parameters({
     toolbars        => { top => 1, bottom => 1 },
     sortable_tracks => 'drag', # allow the user to reorder tracks on the image
-    datahubs        => 1,      # allow datahubs
+    trackhubs        => 1,      # allow track hubs
     opt_halfheight  => 0,      # glyphs are half-height [ probably removed when this becomes a track config ]
     opt_lines       => 1,      # draw registry lines
   });
@@ -54,6 +54,7 @@ sub init {
     trans_associated
     transcript
     prediction
+    lrg
     dna_align_cdna
     dna_align_est
     dna_align_rna
@@ -158,7 +159,7 @@ sub init {
   # Add in additional tracks
   $self->load_tracks;
   $self->load_configured_das;
-  $self->load_configured_datahubs;
+  $self->load_configured_trackhubs;
   $self->load_configured_bigwig;
   $self->load_configured_bigbed;
 #  $self->load_configured_bam;
@@ -198,6 +199,24 @@ sub init {
     [ 'ruler',     '', 'ruler',     { display => 'normal', strand => 'b', name => 'Ruler',     description => 'Shows the length of the region being displayed' }],
     [ 'draggable', '', 'draggable', { display => 'normal', strand => 'b', menu => 'no' }]
   );
+
+  ## LRG track
+  if ($self->species_defs->HAS_LRG) {
+    $self->add_tracks('lrg',
+      [ 'lrg_transcript', 'LRG', '_transcript', {
+        display     => 'transcript_label',
+        strand      => 'f',
+        name        => 'LRG transcripts',
+        description => 'Shows LRG transcripts',
+        logic_names => [ 'LRG_import' ],
+        logic_name  => 'LRG_import',
+        colours     => $self->species_defs->colour('gene'),
+        label_key   => '[display_label]',
+        colour_key  => '[logic_name]',
+        zmenu       => 'LRG',
+      }]
+    );
+  }
 
   ## Switch on multiple alignments defined in MULTI.ini
   my $compara_db      = $self->hub->database('compara');

@@ -35,7 +35,10 @@ use EnsEMBL::Web::Text::Feature::BED;
 
 use base qw(EnsEMBL::Draw::GlyphSet::_alignment EnsEMBL::Draw::GlyphSet_wiggle_and_block);
 
-sub wiggle_subtitle { return $_[0]->my_config('caption'); }
+sub wiggle_subtitle { 
+  my $self = shift;
+  return $self->my_config('longLabel') || $self->my_config('caption');
+}
 
 sub my_helplink   { return 'bigbed'; }
 sub feature_id    { $_[1]->id;       }
@@ -180,24 +183,30 @@ sub _draw_wiggle {
 
 sub features {
   my ($self, $options) = @_;
-  my %config_in = map { $_ => $self->my_config($_) } qw(colouredscore style);
-  
+  my %config_in = map { $_ => $self->my_config($_) } qw(colouredscore colorByStrand spectrum style);
+ 
   $options = { %config_in, %{$options || {}} };
 
   my $bba       = $options->{'adaptor'} || $self->bigbed_adaptor;
   return [] unless $bba;
   my $format    = $self->format;
   my $slice     = $self->{'container'};
-  my $features  = $bba->fetch_features($slice->seq_region_name, $slice->start, $slice->end + 1);
+  my $raw_feats = $bba->fetch_features($slice->seq_region_name, $slice->start, $slice->end + 1);
   my $config    = {};
   my $max_score = 0;
   my $key       = $self->my_config('description') =~ /external webserver/ ? 'url' : 'feature';
   
   $self->{'_default_colour'} = $self->SUPER::my_colour($self->my_config('sub_type'));
   
-  foreach (@$features) {
-    $_->map($slice);
-    $max_score = max($max_score, $_->score);
+  my $features = [];
+  foreach (@$raw_feats) {
+    my $bed = EnsEMBL::Web::Text::Feature::BED->new(@$_);
+    $bed->coords([$_[0],$_[1],$_[2]]);
+    ## Set score to undef if missing, to distinguish it from a genuine present but zero score
+    $bed->score(undef) if @_ < 5;
+    $bed->map($slice);
+    $max_score = max($max_score, $bed->score);
+    push @$features, $bed;
   }
   
   # WORK OUT HOW TO CONFIGURE FEATURES FOR RENDERING
@@ -210,7 +219,7 @@ sub features {
     $config->{'useScore'}        = 1;
     $config->{'implicit_colour'} = 1;
     $config->{'greyscale_max'}   = $max_score;
-  } elsif ($style eq 'colouredscore') {
+  } elsif ($style eq 'colouredscore' || $options->{'spectrum'}) {
     $config->{'useScore'} = 2;    
   } else {
     $config->{'useScore'} = 2;
@@ -222,12 +231,20 @@ sub features {
     } else {
       $default_rgb_string = $self->my_config('colour') || '0,0,0';
     }
-   
+ 
+    my $strand_colours = {}; 
+    if ($options->{'colorByStrand'}) {
+      my ($pos, $neg) = split(' ', $options->{'colorByStrand'});
+      $strand_colours = { 1 => $pos, -1 => $neg };
+    }
+ 
     foreach (@$features) {
       if ($_->external_data->{'BlockCount'}) {
         $self->{'my_config'}->set('has_blocks', 1);
       }
-      my $colour = $_->external_data->{'item_colour'};
+      my $colour = (keys %$strand_colours && $_->strand) ? [$strand_colours->{$_->strand}]
+                      : $_->external_data->{'item_colour'};
+      $_->external_data->{'item_colour'} = $colour;
       next if defined $colour && $colour->[0] =~ /^\d+,\d+,\d+$/;
       $_->external_data->{'item_colour'}[0] = $default_rgb_string;
     }

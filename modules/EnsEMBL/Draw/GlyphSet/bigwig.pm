@@ -28,15 +28,16 @@ use List::Util qw(min max);
 use Bio::EnsEMBL::Analysis;
 use Bio::EnsEMBL::IO::Adaptor::BigWigAdaptor;
 
-# Temporary hack while dependencies are fixes, 2015-04-20
-use Bio::EnsEMBL::ExternalData::BigFile::BigWigAdaptor;
-
 use EnsEMBL::Web::File::Utils::URL;
 
 use base qw(EnsEMBL::Draw::GlyphSet::_alignment EnsEMBL::Draw::GlyphSet_wiggle_and_block);
 
 sub href_bgd       { return $_[0]->_url({ action => 'UserData' }); }
-sub wiggle_subtitle { return $_[0]->my_config('caption'); }
+
+sub wiggle_subtitle {
+  my $self = shift;
+  return $self->my_config('longLabel') || $self->my_config('caption');
+} 
 
 sub bigwig_adaptor { 
   my $self = shift;
@@ -130,12 +131,13 @@ sub bins {
 }
 
 sub features {
-  my $self          = shift;
+  my ($self, $bins, $cache_key) = @_;
+  $bins ||= $self->bins;
   my $slice         = $self->{'container'};
   my $fake_analysis = Bio::EnsEMBL::Analysis->new(-logic_name => 'fake');
   my @features;
   
-  foreach (@{$self->wiggle_features($self->bins)}) {
+  foreach (@{$self->wiggle_features($bins, $cache_key)}) {
     push @features, {
       start    => $_->{'start'}, 
       end      => $_->{'end'}, 
@@ -169,6 +171,7 @@ sub wiggle_aggregate {
       length => $slice->length,
       strand => $slice->strand,
       max => max(@$values),
+      min => min(@$values),
       values => $values,
     };
   }
@@ -197,32 +200,41 @@ sub gang_prepare {
 
 # get the alignment features
 sub wiggle_features {
-  my ($self, $bins) = @_;
+  my ($self, $bins, $multi_key) = @_;
   my $hub = $self->{'config'}->hub;
   my $has_chrs = scalar(@{$hub->species_defs->ENSEMBL_CHROMOSOMES});
   
-  if (!$self->{'_cache'}{'wiggle_features'}) {
+  my $wiggle_features = $multi_key ? $self->{'_cache'}{'wiggle_features'}{$multi_key} 
+                                   : $self->{'_cache'}{'wiggle_features'}; 
+
+  if (!$wiggle_features) {
     my $slice     = $self->{'container'};
     my $adaptor   = $self->bigwig_adaptor;
     return [] unless $adaptor;
+
     my $summary   = $adaptor->fetch_summary_array($slice->seq_region_name, $slice->start, $slice->end, $bins, $has_chrs);
     my $bin_width = $slice->length / $bins;
     my $flip      = $slice->strand == -1 ? $slice->length + 1 : undef;
-    my @features;
+    $wiggle_features = [];
     
     for (my $i = 0; $i < $bins; $i++) {
       next unless defined $summary->[$i];
-      push @features, {
+      push @$wiggle_features, {
         start => $flip ? $flip - (($i + 1) * $bin_width) : ($i * $bin_width + 1),
         end   => $flip ? $flip - ($i * $bin_width + 1)   : (($i + 1) * $bin_width),
         score => $summary->[$i],
       };
     }
-    
-    $self->{'_cache'}{'wiggle_features'} = \@features;
+  
+    if ($multi_key) {
+      $self->{'_cache'}{'wiggle_features'}{$multi_key} = $wiggle_features;
+    }
+    else {
+      $self->{'_cache'}{'wiggle_features'} = $wiggle_features;
+    }
   }
   
-  return $self->{'_cache'}{'wiggle_features'};
+  return $wiggle_features;
 }
 
 sub draw_features {
@@ -236,11 +248,18 @@ sub draw_features {
 
     my $viewLimits = $self->my_config('viewLimits');
     my $no_titles  = $self->my_config('no_titles');
-    # TODO barcode renderer cannot cope with minimum score being non-zero
-    my $max_score;
+    my ($min_score,$max_score);
     my $signal_range = $self->my_config('signal_range');
     if(defined $signal_range) {
+      $min_score = $signal_range->[0];
       $max_score = $signal_range->[1];
+    }
+    unless(defined $min_score) {
+      if (defined $viewLimits) {
+        $min_score = [ split ':', $viewLimits ]->[0];
+      } else {
+        $min_score = $agg->{'min'};
+      }
     }
     unless(defined $max_score) {
       if (defined $viewLimits) {
@@ -254,11 +273,14 @@ sub draw_features {
     if($gang and $gang->{'max'}) {
       $max_score = $gang->{'max'};
     }
+    if($gang and $gang->{'min'}) {
+      $min_score = $gang->{'min'};
+    }
 
     # render wiggle plot
     my $height = $self->my_config('height') || 60;
     $self->draw_wiggle_plot($agg->{'values'}, {
-      min_score    => 0,
+      min_score    => $min_score,
       max_score    => $max_score,
       score_colour => $colour,
       axis_colour  => $colour,

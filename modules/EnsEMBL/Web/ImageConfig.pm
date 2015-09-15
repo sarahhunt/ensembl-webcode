@@ -63,7 +63,7 @@ sub new {
     _parameters      => { # Default parameters
       storable     => 1,      
       has_das      => 1,
-      datahubs     => 0,
+      trackhubs     => 0,
       image_width  => $ENV{'ENSEMBL_IMAGE_WIDTH'} || 800,
       image_resize => 0,      
       margin       => 5,
@@ -618,7 +618,7 @@ sub load_user_tracks {
   my $session  = $hub->session;
   my $user     = $hub->user;
   my $das      = $hub->get_all_das;
-  my $datahubs = $self->get_parameter('datahubs') == 1;
+  my $trackhubs = $self->get_parameter('trackhubs') == 1;
   my (%url_sources, %upload_sources);
   
   $self->_load_url_feature($menu);
@@ -732,8 +732,8 @@ sub load_user_tracks {
         source   => $url_sources{$code},
         external => 'user'
       );
-    } elsif (lc $url_sources{$code}{'format'} eq 'datahub') {
-      $self->_add_datahub($url_sources{$code}{'source_name'}, $url_sources{$code}{'source_url'}) if $datahubs;
+    } elsif (lc $url_sources{$code}{'format'} eq 'trackhub') {
+      $self->_add_trackhub($url_sources{$code}{'source_name'}, $url_sources{$code}{'source_url'}) if $trackhubs;
     } else {
       $self->_add_flat_file_track($menu, 'url', $code, $url_sources{$code}{'source_name'},
         sprintf('
@@ -795,10 +795,13 @@ sub load_user_tracks {
   $ENV{'CACHE_TAGS'}{'user_data'} = sprintf 'USER_DATA[%s]', md5_hex(join '|', map $_->id, $menu->nodes) if $menu->has_child_nodes;
 }
 
-sub _add_datahub {
-  my ($self, $menu_name, $url, $is_poor_name, $existing_menu) = @_;
+sub _add_trackhub {
+  my ($self, $menu_name, $url, $is_poor_name, $existing_menu, $force_hide) = @_;
+  if (defined($self->hub->species_defs->TRACKHUB_VISIBILITY)) {
+    $force_hide = $self->hub->species_defs->TRACKHUB_VISIBILITY;
+  }
 
-  return ($menu_name, {}) if $self->{'_attached_datahubs'}{$url};
+  return ($menu_name, {}) if $self->{'_attached_trackhubs'}{$url};
 
   my $trackhub  = EnsEMBL::Web::File::Utils::TrackHub->new('hub' => $self->hub, 'url' => $url);
   my $hub_info = $trackhub->get_hub({'assembly_lookup' => $self->species_defs->assembly_lookup, 
@@ -811,7 +814,7 @@ sub _add_datahub {
     my $shortLabel = $hub_info->{'details'}{'shortLabel'};
     $menu_name = $shortLabel if $shortLabel and $is_poor_name;
 
-    my $menu     = $existing_menu || $self->tree->append_child($self->create_submenu($menu_name, $menu_name, { external => 1, datahub_menu => 1 }));
+    my $menu     = $existing_menu || $self->tree->append_child($self->create_submenu($menu_name, $menu_name, { external => 1, trackhub_menu => 1, description =>  $hub_info->{'details'}{'longLabel'}}));
 
     my $node;
     my $assemblies = $self->hub->species_defs->get_config($self->species,'TRACKHUB_ASSEMBLY_ALIASES');
@@ -827,9 +830,9 @@ sub _add_datahub {
       last if $node;
     }
     if ($node) {
-      $self->_add_datahub_node($node, $menu, $menu_name);
+      $self->_add_trackhub_node($node, $menu, $menu_name, $force_hide);
 
-      $self->{'_attached_datahubs'}{$url} = 1;
+      $self->{'_attached_trackhubs'}{$url} = 1;
     } else {
       my $assembly = $self->hub->species_defs->get_config($self->species, 'ASSEMBLY_VERSION');
       $hub_info->{'error'} = ["No sources could be found for assembly $assembly. Please check the hub's genomes.txt file for supported assemblies."];
@@ -838,8 +841,8 @@ sub _add_datahub {
   return ($menu_name, $hub_info);
 }
 
-sub _add_datahub_node {
-  my ($self, $node, $menu, $name) = @_;
+sub _add_trackhub_node {
+  my ($self, $node, $menu, $name, $force_hide) = @_;
   
   my (@next_level, @childless);
   if ($node->has_child_nodes) {
@@ -854,36 +857,42 @@ sub _add_datahub_node {
   }
 
   if (scalar(@next_level)) {
-    $self->_add_datahub_node($_, $menu, $name) for @next_level;
+    $self->_add_trackhub_node($_, $menu, $name, $force_hide) for @next_level;
   } 
 
   if (scalar(@childless)) {
-    ## Get additional/overridden settings from parent nodes
+    ## Get additional/overridden settings from parent nodes. Note that we will
+    ## combine visibility and on_off later to produce Ensembl-friendly settings
     my $n       = $node;
     my $data    = $n->data;
     my $config  = {};
     ## The only parameter we override from superTrack nodes is visibility
     if ($data->{'superTrack'} && $data->{'superTrack'} eq 'on') {
-      $config->{'visibility'} = $data->{'visibility'}; 
+      $config->{'visibility'} = $data->{'visibility'};
+      $config->{'on_off'}     = $data->{'on_off'};
     }
     else {
-      $config->{$_} = $data->{$_} for keys %$data;
+      $config->{$_}       = $data->{$_} for keys %$data;
+      $config->{'on_off'} = $data->{'on_off'};
     }
 
+    ## Add any setting inherited from parents
     while ($n = $n->parent_node) {
       $data = $n->data;
       if ($data->{'superTrack'} && $data->{'superTrack'} eq 'on') {
-        $config->{'visibility'} = $data->{'visibility'} if $data->{'visibility'}; 
+        $config->{'visibility'} = $data->{'visibility'};
+        $config->{'on_off'}     = $data->{'on_off'};
         last;
       }
       $config->{$_} ||= $data->{$_} for keys %$data;
-    };
+    }
+    $config->{'on_off'} = 'off' if $force_hide;
 
-    $self->_add_datahub_tracks($node, \@childless, $config, $menu, $name);
+    $self->_add_trackhub_tracks($node, \@childless, $config, $menu, $name);
   }
 }
 
-sub _add_datahub_tracks {
+sub _add_trackhub_tracks {
   my ($self, $parent, $children, $config, $menu, $name) = @_;
   my $hub    = $self->hub;
   my $data   = $parent->data;
@@ -895,7 +904,7 @@ sub _add_datahub_tracks {
     menu_name    => $name,
     submenu_key  => $self->tree->clean_id("${name}_$data->{'track'}", '\W'),
     submenu_name => $data->{'shortLabel'},
-    datahub      => 1,
+    trackhub      => 1,
   );
 
   if ($matrix) {
@@ -935,54 +944,73 @@ sub _add_datahub_tracks {
   $self->alphabetise_tracks($submenu, $menu);
  
   my $count_visible = 0;
+
+  my $style_mappings = {
+                        'bigbed' => {
+                                      'full'    => 'as_transcript_label',
+                                      'squish'  => 'half_height',
+                                      'pack'    => 'stack',
+                                      'dense'   => 'ungrouped',
+                                      },
+                        'bigwig' => {
+                                      'full'    => 'tiling',
+                                      'default' => 'compact',
+                                    },
+                        'vcf' =>    {
+                                      'full'    => 'histogram',
+                                      'dense'   => 'compact',
+                                    },
+                      };
  
   foreach (@{$children||[]}) {
     my $track        = $_->data;
     my $type         = ref $track->{'type'} eq 'HASH' ? uc $track->{'type'}{'format'} : uc $track->{'type'};
-    my $visibility   = $config->{'visibility'} || $track->{'visibility'};
+
+    my $on_off = $config->{'on_off'} || $track->{'on_off'};
+    ## Turn track on if there's no higher setting turning it off
+    if (!$config->{'on_off'} && !$track->{'on_off'}) {
+      $on_off = 'on';
+    }
+
+    my $ucsc_display  = $config->{'visibility'} || $track->{'visibility'};
+
     ## FIXME - According to UCSC's documentation, 'squish' is more like half_height than compact
-    my $squish       = $visibility eq 'squish';
-    my $desc_url     = $track->{'description_url'} ? $hub->url('Ajax', {'type' => 'fetch_html', 'url' => $track->{'description_url'}}) : '';
+    my $squish       = $ucsc_display eq 'squish';
     (my $source_name = $track->{'shortLabel'}) =~ s/_/ /g;
 
-    ## Set track style according to format and visibility
-    my $display;
-    if ($visibility && $visibility ne 'hide' && $visibility ne 'none') {
-      if (lc($type) eq 'bigbed') {
-        if ($visibility eq 'full') {
-          $display = 'as_transcript_label';
-        }
-        elsif ($visibility eq 'squish') {
-          $display = 'half_height';
-        }
-        elsif ($visibility eq 'pack') {
-          $display = 'stack';
-        }
-        elsif ($visibility eq 'dense') {
-          $display = 'ungrouped';
-        }
-      }
-      elsif (lc($type) eq 'bigwig') {
-        $display = $visibility eq 'full' ? 'tiling' : 'compact';
-      }
-      $options{'display'} = $display;
+    ## Translate between UCSC terms and Ensembl ones
+    my $default_display = $style_mappings->{lc($type)}{$ucsc_display}
+                              || $style_mappings->{lc($type)}{'default'}
+                              || 'normal';
+    $options{'default_display'} = $default_display;
+
+    ## Set track style if appropriate 
+    if ($on_off && $on_off eq 'on') {
+      $options{'display'} = $default_display;
       $count_visible++;
-      ## TODO - remove this warn once we've benchmarked trackhub visibility
-      #warn sprintf('... SETTING TRACK STYLE TO %s FOR %s TRACK %s', $display, uc($type), $track->{'track'});
     }
+    else {
+      $options{'display'} = 'off';
+    }
+
+    ## Note that we use a duplicate value in description and longLabel, because non-hub files 
+    ## often have much longer descriptions so we need to distinguish the two
     my $source       = {
       name        => $track->{'track'},
       source_name => $source_name,
       desc_url    => $track->{'description_url'},
       description => $track->{'longLabel'},
+      longLabel   => $track->{'longLabel'},
       source_url  => $track->{'bigDataUrl'},
       colour      => exists $track->{'color'} ? $track->{'color'} : undef,
+      colorByStrand => exists $track->{'colorByStrand'} ? $track->{'colorByStrand'} : undef,
+      spectrum    => exists $track->{'spectrum'} ? $track->{'spectrum'} : undef,
       no_titles   => $type eq 'BIGWIG', # To improve browser speed don't display a zmenu for bigwigs
       squish      => $squish,
       signal_range => $track->{'signal_range'},
       %options
     };
-    
+
     # Graph range - Track Hub default is 0-127
 
     if (exists $track->{'viewLimits'}) {
@@ -1018,7 +1046,7 @@ sub _add_datahub_tracks {
   $self->load_file_format(lc, $tracks{$_}) for keys %tracks;
 }
 
-sub _add_datahub_extras_options {
+sub _add_trackhub_extras_options {
   my ($self, %args) = @_;
   
   if (exists $args{'menu'}{'maxHeightPixels'} || exists $args{'source'}{'maxHeightPixels'}) {
@@ -1044,7 +1072,7 @@ sub _add_datahub_extras_options {
   $args{'options'}{'no_titles'}  = $args{'menu'}{'no_titles'}  || $args{'source'}{'no_titles'}  if exists $args{'menu'}{'no_titles'}  || exists $args{'source'}{'no_titles'};
   $args{'options'}{'set'}        = $args{'source'}{'submenu_key'};
   $args{'options'}{'subset'}     = $self->tree->clean_id($args{'source'}{'submenu_key'}, '\W') unless $args{'source'}{'matrix'};
-  $args{'options'}{$_}           = $args{'source'}{$_} for qw(datahub matrix column_data colour description desc_url);
+  $args{'options'}{$_}           = $args{'source'}{$_} for qw(trackhub matrix column_data colour description desc_url);
   
   return %args;
 }
@@ -1101,16 +1129,16 @@ sub load_configured_bigbed {
 }
 sub load_configured_bigwig { shift->load_file_format('bigwig'); }
 sub load_configured_vcf    { shift->load_file_format('vcf');    }
-sub load_configured_datahubs { shift->load_file_format('datahub') }
+sub load_configured_trackhubs { shift->load_file_format('trackhub', undef, 1) }
 
 sub load_file_format {
-  my ($self, $format, $sources) = @_;
+  my ($self, $format, $sources, $force_hide) = @_;
   my $function = "_add_${format}_track";
   
-  return unless ($format eq 'datahub' || $self->can($function));
+  return unless ($format eq 'trackhub' || $self->can($function));
   
   my $internal = !defined $sources;
-     $sources  = $self->sd_call(sprintf 'ENSEMBL_INTERNAL_%s_SOURCES', uc $format) || {} unless defined $sources; # get the internal sources from config
+  $sources  = $self->sd_call(sprintf 'ENSEMBL_INTERNAL_%s_SOURCES', uc $format) || {} unless defined $sources; # get the internal sources from config
   
   foreach my $source_name (sort keys %$sources) {
     # get the target menu 
@@ -1121,14 +1149,14 @@ sub load_file_format {
       $source = $self->sd_call($source_name);
       $view   = $source->{'view'};
     } else {
-      ## Probably an external datahub source
+      ## Probably an external trackhub source
          $source       = $sources->{$source_name};
          $view         = $source->{'view'};
       my $menu_key     = $source->{'menu_key'};
       my $menu_name    = $source->{'menu_name'};
       my $submenu_key  = $source->{'submenu_key'};
       my $submenu_name = $source->{'submenu_name'};
-      my $main_menu    = $self->get_node($menu_key) || $self->tree->append_child($self->create_submenu($menu_key, $menu_name, { external => 1, datahub_menu => !!$source->{'datahub'} }));
+      my $main_menu    = $self->get_node($menu_key) || $self->tree->append_child($self->create_submenu($menu_key, $menu_name, { external => 1, trackhub_menu => !!$source->{'trackhub'} }));
          $menu         = $self->get_node($submenu_key);
       
       if (!$menu) {
@@ -1137,8 +1165,8 @@ sub load_file_format {
       }
     }
     if ($source) {
-      if ($format eq 'datahub') {
-        $self->_add_datahub($source->{'source_name'}, $source->{'url'}, undef, $menu);
+      if ($format eq 'trackhub') {
+        $self->_add_trackhub($source->{'source_name'}, $source->{'url'}, undef, $menu, $force_hide);
       }
       else { 
         my $is_internal = $source->{'source_url'} ? 0 : $internal;
@@ -1154,7 +1182,12 @@ sub _add_bam_track {
     The read end bars indicate the direction of the read and the colour indicates the type of read pair:
     Green = both mates are part of a proper pair; Blue = either this read is not paired, or its mate was not mapped; Red = this read is not properly paired.
   ';
-  
+ 
+
+  ## Override default renderer (mainly used by trackhubs)
+  my %options;
+  $options{'display'} = $args{'source'}{'display'} if $args{'source'}{'display'};
+ 
   $self->_add_file_format_track(
     format      => 'BAM',
     description => $desc,
@@ -1167,7 +1200,8 @@ sub _add_bam_track {
     colourset   => 'BAM',
     options => {
       external => 'external',
-      sub_type => 'bam'
+      sub_type => 'bam',
+      %options,
     },
     %args,
   );
@@ -1181,14 +1215,17 @@ sub _add_bigbed_track {
   unless ($renderers) {
     ($strand, $renderers) = $self->_user_track_settings($args{'source'}{'style'}, 'BIGBED');
   }
-  
+ 
   my $options = {
-    external     => 'external',
-    sub_type     => 'url',
-    colourset    => 'feature',
-    strand       => $strand,
-    style        => $args{'source'}{'style'},
-    addhiddenbgd => 1,
+    external      => 'external',
+    sub_type      => 'url',
+    colourset     => 'feature',
+    colorByStrand => $args{'source'}{'colorByStrand'},
+    spectrum      => $args{'source'}{'spectrum'},
+    strand        => $strand,
+    style         => $args{'source'}{'style'},
+    longLabel     => $args{'source'}{'longLabel'},
+    addhiddenbgd  => 1,
     max_label_rows => 2,
   };
   ## Override default renderer (mainly used by trackhubs)
@@ -1222,6 +1259,7 @@ sub _add_bigwig_track {
     external     => 'external',
     sub_type     => 'bigwig',
     colour       => $args{'menu'}{'colour'} || $args{'source'}{'colour'} || 'red',
+    longLabel    => $args{'source'}{'longLabel'},
     addhiddenbgd => 1,
     max_label_rows => 2,
   };
@@ -1238,7 +1276,13 @@ sub _add_bigwig_track {
 }
 
 sub _add_vcf_track {
-  shift->_add_file_format_track(
+  my ($self, %args) = @_;
+
+  ## Override default renderer (mainly used by trackhubs)
+  my %options;
+  $options{'display'} = $args{'source'}{'display'} if %args && $args{'source'}{'display'};
+
+  $self->_add_file_format_track(
     format    => 'VCF',
     renderers => [
       'off',       'Off',
@@ -1250,13 +1294,14 @@ sub _add_vcf_track {
       sources    => undef,
       depth      => 0.5,
       bump_width => 0,
-      colourset  => 'variation'
+      colourset  => 'variation',
+      %options,
     },
-    @_
+    %args
   );
 }
 
-sub _add_pairwise_tabix_track {
+sub _add_pairwise_track {
   shift->_add_file_format_track(
     format    => 'PAIRWISE',
     renderers => [
@@ -1304,7 +1349,7 @@ sub _add_file_format_track {
 
   return unless $menu;
 
-  %args = $self->_add_datahub_extras_options(%args) if $args{'source'}{'datahub'};
+  %args = $self->_add_trackhub_extras_options(%args) if $args{'source'}{'trackhub'};
 
   my $type    = lc $args{'format'};
   my $article = $args{'format'} =~ /^[aeiou]/ ? 'an' : 'a';
@@ -1440,7 +1485,7 @@ sub update_from_url {
     my $format = $hub->param('format');
     my ($key, $renderer);
     
-    if (uc $format eq 'DATAHUB') {
+    if (uc $format eq 'TRACKHUB') {
       $key = $v;
     } else {
       my @split = split /=/, $v;
@@ -1518,15 +1563,15 @@ sub update_from_url {
         # We then have to create a node in the user_config
         my %ensembl_assemblies = %{$hub->species_defs->assembly_lookup};
 
-        if (uc $format eq 'DATAHUB') {
+        if (uc $format eq 'TRACKHUB') {
           my $info;
-          ($n, $info) = $self->_add_datahub($n, $p,1);
+          ($n, $info) = $self->_add_trackhub($n, $p,1);
           if ($info->{'error'}) {
             my @errors = @{$info->{'error'}||[]};
             $session->add_data(
               type     => 'message',
               function => '_warning',
-              code     => 'datahub:' . md5_hex($p),
+              code     => 'trackhub:' . md5_hex($p),
               message  => "There was a problem attaching trackhub $n: @errors",
             );
           }
@@ -1578,7 +1623,7 @@ sub update_from_url {
         }
         # We have to create a URL upload entry in the session
         my $message  = sprintf('Data has been attached to your display from the following URL: %s', encode_entities($p));
-        if (uc $format eq 'DATAHUB') {
+        if (uc $format eq 'TRACKHUB') {
           $message .= " Please go to '<b>Configure this page</b>' to choose which tracks to show (we do not turn on tracks automatically in case they overload our server).";
         }
         $session->add_data(
@@ -2046,7 +2091,7 @@ sub add_matrix {
   $data->{'column_key'}  = $column_key;
   $data->{'menu'}        = 'matrix_subtrack';
   $data->{'source_name'} = $data->{'name'};
-  $data->{'display'}     = 'default';
+  $data->{'display'}   ||= 'default';
   
   if (!$menu_data->{'matrix'}) {
     my $hub = $self->hub;
@@ -2061,15 +2106,21 @@ sub add_matrix {
   
   foreach (@rows) {
     my $option_key = $self->tree->clean_id("${subset}_${column}_$_->{'row'}");
+    my $display = ($_->{'on'} || ($data->{'display'} ne 'off' && $data->{'display'} ne 'default')) ? 'on' : 'off';
     
-    $column_track->append($self->create_track($option_key, $_->{'row'}, {
+    my $node = $self->create_track($option_key, $_->{'row'}, {
       node_type => 'option',
       menu      => 'no',
-      display   => $_->{'on'} ? 'on' : 'off',
+      display   => $display,
       renderers => [qw(on on off off)],
       caption   => "$column - $_->{'row'}",
       group => $_->{'group'},
-    }));
+    });
+    ## Hack to get trackhub matrix visibility to work
+    if ($display eq 'on') {
+      $node->{'user_data'}{$option_key} = {'display' => 'on'};
+    }
+    $column_track->append($node);
     
     $menu_data->{'matrix'}{'rows'}{$_->{'row'}} ||= { id => $_->{'row'}, group => $_->{'group'}, group_order => $_->{'group_order'}, column_order => $_->{'column_order'}, column => $column };
   }
@@ -2718,7 +2769,7 @@ sub add_alignments {
         $type        = sprintf '%sLASTz %s', $1, lc $2;
         $description = "$type pairwise alignments";
       } elsif ($row->{'type'} =~ /TRANSLATED_BLAT/) {
-        $type        = '';
+        $type        = 'TBLAT';
         $menu_key    = 'pairwise_tblat';
         $description = 'Trans. BLAT net pairwise alignments';
       } else {
@@ -2728,7 +2779,7 @@ sub add_alignments {
         $description = 'Pairwise alignments';
       }
       
-      $description  = qq{<a href="$static" class="cp-external">$description</a> between $self_label and $other_label"};
+      $description  = qq{<a href="$static" class="cp-external">$description</a> between $self_label and $other_label};
       $description .= " $1" if $row->{'name'} =~ /\((on.+)\)/;
 
       $alignments->{$menu_key}{$row->{'id'}} = {
@@ -2918,7 +2969,15 @@ sub add_regulation_builds {
   my $reg_segs      = $menu->append($self->create_submenu('seg_features', 'Segmentation features'));
   my $adaptor       = $db->get_FeatureTypeAdaptor;
   my $evidence_info = $adaptor->get_regulatory_evidence_info;
-  my @cell_lines    = sort { ($b eq 'MultiCell') <=> ($a eq 'MultiCell') || $a cmp $b } map [split ':']->[0], keys %{$db_tables->{'cell_type'}{'ids'}}; # Put MultiCell first
+
+  my @cell_lines;
+
+  foreach (keys %{$db_tables->{'cell_type'}{'ids'}||{}}) {
+    (my $name = $_) =~ s/:\w+$//;
+    push @cell_lines, $name;
+  }
+  @cell_lines = sort { ($b eq 'MultiCell') <=> ($a eq 'MultiCell') || $a cmp $b } @cell_lines; # Put MultiCell first
+ 
   my (@renderers, $prev_track, %matrix_menus, %matrix_rows);
 
   # FIXME: put this in db
@@ -3024,7 +3083,7 @@ sub add_regulation_builds {
         height      => 4,
       }));
     }
-    
+   
     my %column_data = (
       db        => $key,
       glyphset  => 'fg_multi_wiggle',
@@ -3245,7 +3304,7 @@ sub add_sequence_variations_default {
     next unless $hashref->{'source'}{'counts'}{$key_2} > 0;
     next if     $hashref->{'source'}{'somatic'}{$key_2} == 1;
     
-    $sequence_variation->append($self->create_track("variation_feature_${key}_$key_2", "$key_2 variations", {
+    $sequence_variation->append($self->create_track("variation_feature_${key}_$key_2", "$key_2 variants", {
       %$options,
       caption     => $prefix_caption.$key_2,
       sources     => [ $key_2 ],
@@ -3642,7 +3701,7 @@ sub add_somatic_structural_variations {
   }));
   
   foreach my $key_2 (sort keys %{$hashref->{'structural_variation'}{'somatic'}{'counts'} || {}}) {
-    $somatic->append($self->create_track("somatic_sv_feature_$key_2", "$key_2 somatic structural variations", {
+    $somatic->append($self->create_track("somatic_sv_feature_$key_2", "$key_2 somatic structural variants", {
       %options,
       caption     => $prefix_caption."$key_2 somatic",
       source      => $key_2,
@@ -3657,7 +3716,7 @@ sub add_somatic_structural_variations {
 sub share {
   # Remove anything from user settings that is:
   #   Custom data that the user isn't sharing
-  #   A track from a datahub that the user isn't sharing
+  #   A track from a trackhub that the user isn't sharing
   #   Not for the species in the image
   # Reduced track order of explicitly ordered tracks if they are after custom tracks which aren't shared
   
@@ -3665,10 +3724,10 @@ sub share {
   my $user_settings     = EnsEMBL::Web::Root->deepcopy($self->get_user_settings);
   my $species           = $self->species;
   my $user_data         = $self->get_node('user_data');
-  my @unshared_datahubs = grep $_->get('datahub_menu') && !$shared_custom_tracks{$_->id}, @{$self->tree->child_nodes};
+  my @unshared_trackhubs = grep $_->get('trackhub_menu') && !$shared_custom_tracks{$_->id}, @{$self->tree->child_nodes};
   my @user_tracks       = map { $_ ? $_->nodes : () } $user_data;
   my %user_track_ids    = map { $_->id => 1 } @user_tracks;
-  my %datahub_tracks    = map { $_->id => [ map $_->id, $_->nodes ] } @unshared_datahubs;
+  my %trackhub_tracks    = map { $_->id => [ map $_->id, $_->nodes ] } @unshared_trackhubs;
   my %to_delete;
   
   foreach (keys %$user_settings) {
@@ -3681,16 +3740,17 @@ sub share {
     $to_delete{$_} = 1 if $user_track_ids{$_};             # delete anything that isn't shared
   }
   
-  foreach (@unshared_datahubs) {
-    $to_delete{$_} = 1 for grep $user_settings->{$_}, @{$datahub_tracks{$_->id} || []};  # delete anything for tracks in datahubs that aren't shared
+  foreach (@unshared_trackhubs) {
+    $to_delete{$_} = 1 for grep $user_settings->{$_}, @{$trackhub_tracks{$_->id} || []};  # delete anything for tracks in trackhubs that aren't shared
   }
-  
+ 
+=pod 
   # Reduce track orders if custom tracks aren't shared
   if (scalar keys %to_delete) {
-    my %track_ids_to_delete  = map { $_ => 1 } keys %to_delete, map { @{$datahub_tracks{$_->id} || []} } @unshared_datahubs;
+    my %track_ids_to_delete  = map { $_ => 1 } keys %to_delete, map { @{$trackhub_tracks{$_->id} || []} } @unshared_trackhubs;
     my @removed_track_orders = map { $track_ids_to_delete{$_->id} && $_->{'data'}{'node_type'} eq 'track' ? $_->{'data'}{'order'} : () } @{$self->glyphset_configs};
     
-    foreach my $order (values %{$user_settings->{'track_order'}{$species}}) {
+    foreach my $order (@{$user_settings->{'track_order'}{$species}}) {
       my $i = 0;
       
       for (@removed_track_orders) {
@@ -3709,7 +3769,7 @@ sub share {
   }
   
   delete $user_settings->{'track_order'}{$_} for grep $_ ne $species, keys %{$user_settings->{'track_order'}};
-  
+=cut  
   return $user_settings;
 }
 

@@ -97,12 +97,10 @@ sub process_data {
     my $go_link     = $hub->get_ExtURL_link($go, $extdb, $go);
     my $goslim      = $hash->{'goslim'} || {};
     my $row         = {};
-    my $go_evidence = $hash->{'evidence'}; 
-    
+    my $go_evidence = [ split /\s*,\s*/, $hash->{'evidence'} || '' ];
+
     my ($goslim_goa_acc, $goslim_goa_title, $desc);
-    
-    $description_hash->{$go_evidence} = $description_hash->{$go_evidence} ? $description_hash->{$go_evidence} : 'No description available';
-    
+
     if ($hash->{'info'}) {
       my ($gene, $type, $common_name);
       
@@ -120,12 +118,12 @@ sub process_data {
       my $url        = $hub->url({
         species     => $species,
         type        => $type eq 'gene'        ? 'Gene'           : 'Transcript',
-        action      => $type eq 'translation' ? 'ProteinSummary' : 'Summary',
+        action      => $type eq 'translation' ? 'Ontology' : 'Summary',
         $param_type => $gene,
         __clear     => 1,
       });
       
-      $desc = qq{[from $common_name <a href="$url">$gene</a>]};
+      $desc = qq{Propagated from $common_name <a href="$url">$gene</a> by orthology};
     }
     
     foreach (keys %$goslim) {
@@ -135,7 +133,7 @@ sub process_data {
     
     $row->{'go'}               = $go_link;
     $row->{'description'}      = $hash->{'term'};
-    $row->{'evidence'}         = $self->helptip($go_evidence, $description_hash->{$go_evidence});
+    $row->{'evidence'}         = join ', ', map $self->helptip($_, $description_hash->{$_} // 'No description available'), @$go_evidence;
     $row->{'desc'}             = join ', ', grep $_, ($desc, $hash->{'source'});
     $row->{'goslim_goa_acc'}   = $goslim_goa_acc;
     $row->{'goslim_goa_title'} = $goslim_goa_title;

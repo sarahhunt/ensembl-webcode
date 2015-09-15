@@ -193,7 +193,7 @@ sub count_citations{
 sub short_caption {
   my $self = shift;
   
-  my $type = $self->Obj->is_somatic ? 'Somatic mutation' : 'Variation';
+  my $type = $self->Obj->is_somatic ? 'Somatic mutation' : 'Variant';
   my $short_type = $self->Obj->is_somatic ? 'S. mut' : 'Var';
   return $type.' displays' unless shift eq 'global';   
   
@@ -1555,8 +1555,7 @@ sub hgvs {
       foreach my $type ('hgvs_genomic', 'hgvs_transcript', 'hgvs_protein') {
         my $h = $tv->{$type};
         
-        next unless $h && $h !~ m/\(p\.=\)/;
-        next if $type eq 'hgvs_genomic' && $seen_genomic{$h}++;
+        next if !$h || $type eq 'hgvs_genomic' && $seen_genomic{$h}++;
         
         push @{$hgvs{$allele}}, $h;
       }

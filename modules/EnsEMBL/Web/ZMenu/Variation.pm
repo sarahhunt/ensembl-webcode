@@ -110,8 +110,9 @@ sub feature_content {
 
 
 
-  my $color = $var_styles->{$type} ? $colourmap->hex_by_name($var_styles->{$type}->{'default'}) : $colourmap->hex_by_name($var_styles->{'default'}->{'default'});
-  my $consequence_label = $types->{$type}{'text'};
+my $type_key = lc($type);
+  my $color = $var_styles->{$type_key} ? $colourmap->hex_by_name($var_styles->{$type_key}->{'default'}) : $colourmap->hex_by_name($var_styles->{'default'}->{'default'});
+  my $consequence_label = $types->{$type_key}{'text'};
 
   if ($feature->most_severe_OverlapConsequence->SO_term eq $type) {
     my $cons_desc = $feature->most_severe_OverlapConsequence->description;
@@ -120,16 +121,26 @@ sub feature_content {
          '<span class="_ht conhelp coltab_text" title="%s">%s</span></nobr>',
          $color,
          $cons_desc,
-         $types->{$type}{'text'}
+         $types->{$type_key}{'text'}
     );
   }
 
   my $sources = join(', ', @{$feature->get_all_sources});
   
-  my @entries = (
-    [ 'Class',    $feature->var_class ],
-    [ 'Location', $bp                 ]
-  );
+  my @entries = ([ 'Class', $feature->var_class ]);
+
+  push @entries, [
+    'Location',
+    sprintf('%s<a href="%s" class="_location_mark hidden"></a>',
+      $bp,
+      $hub->url({
+        type    => 'Location',
+        action  => 'View',
+        r       => "$chr:$chr_start-$chr_end"
+      })
+    )
+  ];
+
   push @entries, [ 'LRG location',   $lrg_bp              ] if $lrg_bp;
   push @entries, [ 'Alleles',        $alleles             ];
   push @entries, [ 'Ambiguity code', $feature->ambig_code ];

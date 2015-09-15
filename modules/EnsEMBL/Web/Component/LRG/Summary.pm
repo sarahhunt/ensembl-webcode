@@ -89,9 +89,10 @@ sub content {
     my $location_html = sprintf(
       '<p><a href="%s" class="constant">%s: %s-%s</a> %s.</p>',
       $hub->url({
-        type   => 'Location',
-        action => 'View',
-        r      => $slice->seq_region_name . ':' . $slice->start . '-' . $slice->end
+        type             => 'Location',
+        action           => 'View',
+        r                => $slice->seq_region_name . ':' . $slice->start . '-' . $slice->end,
+        contigviewbottom => 'lrg=normal'
       }),
       $self->neat_sr_name($slice->coord_system->name, $slice->seq_region_name),
       $self->thousandify($slice->start),
@@ -168,7 +169,7 @@ sub transcript_table {
   my @columns = (
      { key => 'transcript', sort => 'html',    title => 'Transcript ID' },
      { key => 'bp_length',  sort => 'numeric', title => 'Length (bp)'   },
-     { key => 'protein',    sort => 'html',    title => 'Protein ID'    },
+     { key => 'protein',sort =>'html_numeric', title => 'Protein ID'    },
      { key => 'aa_length',  sort => 'numeric', title => 'Length (aa)'   },
   );
 

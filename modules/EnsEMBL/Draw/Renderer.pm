@@ -85,7 +85,7 @@ our $patterns = {
 };
 
 sub new {
-  my ($class, $config, $extra_spacing, $glyphsets_ref, $boxes) = @_;
+  my ($class, $config, $extra_spacing, $glyphsets_ref, $extra) = @_;
   
   my $self = {
     'glyphsets'     => $glyphsets_ref,
@@ -93,10 +93,11 @@ sub new {
     'colourmap'     => $config->colourmap,
     'config'        => $config,
     'extra_spacing' => $extra_spacing,
-    'boxes'         => $boxes || {},
+    'extra'         => $extra || {},
     'spacing'       => $config->get_parameter('spacing') || 2,
     'margin'        => $config->get_parameter('margin') || 5,
-    'sf'            => $config->get_parameter('sf') || 1
+    'sf'            => $config->get_parameter('sf') || 1,
+    contrast        => $config->get_parameter('contrast') || 1,
   };
   
   bless($self, $class);
@@ -211,14 +212,20 @@ sub render {
     push @{$layers{$_->{'z'}||0}}, $_ for @{$glyphset->{'glyphs'}};
   }
 
-  # add the highlight boxes
+  # add the red boxes
   my ($top_layer) = sort { $b <=> $a } keys %layers;
-  for (sort keys %{$self->{'boxes'}}) {
+  my $boxes = $self->{'extra'}{'boxes'} || {};
+  for (sort keys %$boxes) {
     push @{$layers{$top_layer + 1}},
-      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $self->{'boxes'}{$_}{'l'}, pixely => $self->{'boxes'}{$_}{'t'}, pixelwidth => $self->{'boxes'}{$_}{'r'} - $self->{'boxes'}{$_}{'l'}, pixelheight => 0 }),
-      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $self->{'boxes'}{$_}{'r'}, pixely => $self->{'boxes'}{$_}{'t'}, pixelwidth => 0, pixelheight => $self->{'boxes'}{$_}{'b'} - $self->{'boxes'}{$_}{'t'} }),
-      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $self->{'boxes'}{$_}{'l'}, pixely => $self->{'boxes'}{$_}{'b'}, pixelwidth => $self->{'boxes'}{$_}{'r'} - $self->{'boxes'}{$_}{'l'}, pixelheight => 0 }),
-      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $self->{'boxes'}{$_}{'l'}, pixely => $self->{'boxes'}{$_}{'t'}, pixelwidth => 0, pixelheight => $self->{'boxes'}{$_}{'b'} - $self->{'boxes'}{$_}{'t'} });
+      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $boxes->{$_}{'l'}, pixely => $boxes->{$_}{'t'}, pixelwidth => $boxes->{$_}{'r'} - $boxes->{$_}{'l'}, pixelheight => 0 }),
+      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $boxes->{$_}{'r'}, pixely => $boxes->{$_}{'t'}, pixelwidth => 0, pixelheight => $boxes->{$_}{'b'} - $boxes->{$_}{'t'} }),
+      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $boxes->{$_}{'l'}, pixely => $boxes->{$_}{'b'}, pixelwidth => $boxes->{$_}{'r'} - $boxes->{$_}{'l'}, pixelheight => 0 }),
+      EnsEMBL::Draw::Glyph::Line->new({colour => 'red', pixelx => $boxes->{$_}{'l'}, pixely => $boxes->{$_}{'t'}, pixelwidth => 0, pixelheight => $boxes->{$_}{'b'} - $boxes->{$_}{'t'} });
+  }
+
+  # add transparent layer for marked area
+  if (my $marked_layer = $self->add_location_marking_layer($self->{'extra'}{'mark'})) {
+    push @{$layers{$top_layer + 2}}, $marked_layer;
   }
 
   my %M;
@@ -252,6 +259,10 @@ sub render {
   
   # the last thing we do in the render process is add a frame so that it appears on the top of everything else
   $self->add_canvas_frame($config, $im_width, $im_height);
+}
+
+sub add_location_marking_layer {
+  ## not all renderers support transparency
 }
 
 sub canvas {
