@@ -27,9 +27,6 @@ package EnsEMBL::Web::Component;
 
 use strict;
 
-## Stop Role::Tiny from spamming logs with pointless warnings
-no warnings::anywhere qw(uninitialized);
-
 use base qw(EnsEMBL::Web::Root Exporter);
 
 use Digest::MD5 qw(md5_hex);
@@ -40,7 +37,6 @@ our @EXPORT    = @EXPORT_OK;
 use HTML::Entities  qw(encode_entities);
 use Text::Wrap      qw(wrap);
 use List::MoreUtils qw(uniq);
-use Role::Tiny;
 
 use EnsEMBL::Draw::DrawableContainer;
 use EnsEMBL::Draw::VDrawableContainer;
@@ -83,7 +79,6 @@ sub new {
   bless $self, $class;
   
   $self->_init;
-  $self->apply_object_roles;
   
   return $self;
 }
@@ -229,19 +224,6 @@ sub html_format {
 }
 
 ########### END OF ACCESSORS ###################
-
-sub apply_object_roles {
-## Dynamically add any required roles to data object, for extra functionality
-  my $self = shift;
-  my @roles;
-  foreach (@{$self->get_object_roles}) {
-    push @roles, 'EnsEMBL::Web::Role::'.$_ if $_;
-  }
-  ## Don't try to apply non-existent roles, or Role::Tiny will complain
-  if (scalar @roles) {
-    Role::Tiny->apply_roles_to_object($self->object, @roles);
-  }
-}
 
 sub make_twocol {
   my ($self, $order) = @_;

@@ -22,10 +22,6 @@ package EnsEMBL::Web::Document::Element::Navigation;
 
 use strict;
 
-## Stop Role::Tiny from spamming logs with pointless warnings
-no warnings::anywhere qw(uninitialized);
-use Role::Tiny;
-
 use HTML::Entities qw(encode_entities);
 
 use base qw(EnsEMBL::Web::Document::Element);
@@ -86,8 +82,6 @@ sub init {
   my $self          = shift;
   my $controller    = shift;    
   my $object        = $controller->object;
-
-  $self->apply_roles_to_object;  
 
   my $hub           = $controller->hub;
   my $configuration = $controller->configuration;
