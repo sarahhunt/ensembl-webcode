@@ -26,7 +26,6 @@ sub _init {
   my $self = shift;
   $self->cacheable(0);
   $self->ajaxable(0);
-  $self->object_roles;
 }
 
 sub caption {

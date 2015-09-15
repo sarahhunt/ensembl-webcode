@@ -45,7 +45,8 @@ sub populate_tree {
 
   $self->create_node('Splice', 'Splice variants',
     [qw( image EnsEMBL::Web::Component::Gene::SpliceImage )],
-    { 'availability' => 'gene has_transcripts', 'concise' => 'Splice variants' }
+    { 'availability' => 'gene has_transcripts', 'concise' => 'Splice variants',
+      'object_roles' => ['Gene::Variation'] }
   );
 
   $self->create_node('TranscriptComparison', 'Transcript comparison',
@@ -63,7 +64,8 @@ sub populate_tree {
 
   $self->create_node('Alleles', 'Gene alleles',
                      [qw(alleles EnsEMBL::Web::Component::Gene::Alleles)],
-                     { 'availability' => 'core has_alt_alleles', 'concise' => 'Gene Alleles' }
+                     { 'availability' => 'core has_alt_alleles', 'concise' => 'Gene Alleles',
+                       'object_roles' => ['Gene::Variation'] }
                    );
 
   my $seq_menu = $self->create_node('Sequence', 'Sequence',
@@ -90,7 +92,7 @@ sub populate_tree {
       regulation EnsEMBL::Web::Component::Gene::RegulationImage
       features   EnsEMBL::Web::Component::Gene::RegulationTable
     )],
-    { 'availability' => 'regulation not_patch not_rnaseq' }
+    { 'availability' => 'regulation not_patch not_rnaseq', 'object_roles' => ['Gene::Regulation'] }
   );
 
   my $compara_menu = $self->create_node('Compara', 'Comparative Genomics',
@@ -103,34 +105,40 @@ sub populate_tree {
       selector   EnsEMBL::Web::Component::Compara_AlignSliceSelector
       alignments EnsEMBL::Web::Component::Gene::Compara_Alignments
     )],
-    { 'availability' => 'gene database:compara core has_alignments' }
+    { 'availability' => 'gene database:compara core has_alignments',
+      'object_roles' => ['Gene::Homology'] }
   ));
   
   $compara_menu->append($self->create_node('Compara_Tree', 'Gene tree',
     [qw( image EnsEMBL::Web::Component::Gene::ComparaTree )],
-    { 'availability' => 'gene database:compara core has_gene_tree' }
+    { 'availability' => 'gene database:compara core has_gene_tree',
+      'object_roles' => ['Gene::Tree']  }
   ));
   
   $compara_menu->append($self->create_node('SpeciesTree', 'Gene gain/loss tree',
       [qw( image EnsEMBL::Web::Component::Gene::SpeciesTree )],
-      { 'availability' => 'gene database:compara core has_species_tree' }
+      { 'availability' => 'gene database:compara core has_species_tree',
+        'object_roles' => ['Gene::Tree'] }
     ));
     
   my $ol_node = $self->create_node('Compara_Ortholog', 'Orthologues',
     [qw( orthologues EnsEMBL::Web::Component::Gene::ComparaOrthologs )],
-    { 'availability' => 'gene database:compara core has_orthologs', 'concise' => 'Orthologues' }
+    { 'availability' => 'gene database:compara core has_orthologs', 'concise' => 'Orthologues',
+      'object_roles' => ['Gene::Homology'] }
   );
   
   $ol_node->append($self->create_subnode('Compara_Ortholog/Alignment', 'Orthologue alignment',
     [qw( alignment EnsEMBL::Web::Component::Gene::HomologAlignment )],
-    { 'availability'  => 'gene database:compara core has_orthologs', 'no_menu_entry' => 1 }
+    { 'availability'  => 'gene database:compara core has_orthologs', 'no_menu_entry' => 1,
+      'object_roles' => ['Gene::Homology'] }
   ));
   
   $compara_menu->append($ol_node);
   
   my $pl_node = $self->create_node('Compara_Paralog', 'Paralogues',
     [qw(paralogues EnsEMBL::Web::Component::Gene::ComparaParalogs)],
-    { 'availability' => 'gene database:compara core has_paralogs', 'concise' => 'Paralogues' }
+    { 'availability' => 'gene database:compara core has_paralogs', 'concise' => 'Paralogues',
+      'object_roles' => ['Gene::Homology']  }
   );
   
   $pl_node->append($self->create_subnode('Compara_Paralog/Alignment', 'Paralogue alignment',
@@ -142,17 +150,19 @@ sub populate_tree {
   
   my $fam_node = $self->create_node('Family', 'Ensembl protein families',
     [qw( family EnsEMBL::Web::Component::Gene::Family )],
-    { 'availability' => 'family', 'concise' => 'Ensembl protein families' }
+    { 'availability' => 'family', 'concise' => 'Ensembl protein families',
+      'object_roles' => ['Gene::Family']  }
   );
   
   $fam_node->append($self->create_subnode('Family/Genes', uc($species_defs->get_config($hub->species, 'SPECIES_COMMON_NAME')) . ' genes in this family',
     [qw( genes EnsEMBL::Web::Component::Gene::FamilyGenes )],
-    { 'availability'  => 'family', 'no_menu_entry' => 1 }
+    { 'availability'  => 'family', 'no_menu_entry' => 1, 'object_roles' => ['Gene::Family']  }
   ));
 
   $fam_node->append($self->create_subnode('Family/Alignments', 'Multiple alignments in this family',
     [qw( jalview EnsEMBL::Web::Component::Gene::FamilyAlignments )],
-    { 'availability'  => 'family database:compara core', 'no_menu_entry' => 1 }
+    { 'availability'  => 'family database:compara core', 'no_menu_entry' => 1,
+      'object_roles' => ['Gene::Family']  }
   ));
   
   $compara_menu->append($fam_node);
@@ -163,19 +173,23 @@ sub populate_tree {
       variation EnsEMBL::Web::Component::Gene::GenePhenotypeVariation
       orthologue EnsEMBL::Web::Component::Gene::GenePhenotypeOrthologue
     )],
-    { 'availability' => 1 } #set as true since getting the orthologs is really slow
+    #set availability as true since getting the orthologs is really slow
+    { 'availability' => 1,
+      'object_roles' => ['Gene::Variation', 'Gene::Homology']  } 
   );
 	
   my $var_menu = $self->create_submenu('Variation', 'Genetic Variation');
 
   $var_menu->append($self->create_node('Variation_Gene/Table', 'Variation table',
     [qw( snptable EnsEMBL::Web::Component::Gene::VariationTable )],
-    { 'availability' => 'gene database:variation core not_patch' }
+    { 'availability' => 'gene database:variation core not_patch',
+      'object_roles' => ['Gene::Variation'] }
   ));
   
   $var_menu->append($self->create_node('Variation_Gene/Image',  'Variation image',
     [qw( image EnsEMBL::Web::Component::Gene::VariationImage )],
-    { 'availability' => 'gene database:variation core not_patch' }
+    { 'availability' => 'gene database:variation core not_patch',
+      'object_roles' => ['Gene::Variation'] }
   ));
 	
 	$var_menu->append($self->create_node('StructuralVariation_Gene', 'Structural variation',
@@ -183,7 +197,8 @@ sub populate_tree {
       svimage EnsEMBL::Web::Component::Gene::SVImage
       svtable EnsEMBL::Web::Component::Gene::SVTable
     )],
-    { 'availability' => 'gene has_structural_variation core not_patch' }
+    { 'availability' => 'gene has_structural_variation core not_patch',
+      'object_roles' => ['Gene::Variation'] }
   ));
 
   # External Data tree, including non-positional DAS sources

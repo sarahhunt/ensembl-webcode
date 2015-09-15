@@ -29,7 +29,6 @@ sub _init {
   my $self = shift;
   $self->cacheable( 1 );
   $self->ajaxable(  1 );
-  $self->object_roles(['Gene::Variation']);
 }
 
 sub content {
