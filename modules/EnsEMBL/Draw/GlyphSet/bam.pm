@@ -22,7 +22,7 @@ package EnsEMBL::Draw::GlyphSet::bam;
 ### internally configured via an ini file or database record
 ### Note: uses Inline C for faster handling of these huge files
 
-### Note also that in several places we are explicitly calling local methods, 
+### Note also that in several places we are explicitly calling local methods,
 ### e.g. &features($self), because of multiple inheritance in bamcov.pm
 
 use strict;
@@ -31,13 +31,13 @@ use base qw(EnsEMBL::Draw::GlyphSet::sequence);
 use EnsEMBL::Draw::GlyphSet;
 
 use Bio::EnsEMBL::DBSQL::DataFileAdaptor;
-use Bio::EnsEMBL::IO::Adaptor::BAMAdaptor;
+use Bio::EnsEMBL::IO::Adaptor::HTSAdaptor;
 use Data::Dumper;
 
 sub errorTrack {
 ## Hack to override parent errorTrack method
 ## sequence glyph errorTrack has been hacked so this unhacks it
-  EnsEMBL::Draw::GlyphSet::errorTrack(@_); 
+  EnsEMBL::Draw::GlyphSet::errorTrack(@_);
 }
 
 sub render_histogram {
@@ -47,7 +47,7 @@ sub render_histogram {
 }
 
 sub render_unlimited {
-## Display "all" reads 
+## Display "all" reads
   my ($self) = @_;
   # Set the maximum row number to 3000 - it's likely the browser will timeout even at a lesser limit
   # SMJS 3000 just never works, go down to something which might - 500
@@ -58,13 +58,13 @@ sub render_unlimited {
 
 sub render_normal {
   my ($self, %options) = @_;
-  
+
   # show everything by default
-  $options{show_reads} = 1 unless defined $options{show_reads}; # show reads by default 
-  $options{show_coverage} = 1 unless defined $options{show_coverage}; # show coverage by default 
+  $options{show_reads} = 1 unless defined $options{show_reads}; # show reads by default
+  $options{show_coverage} = 1 unless defined $options{show_coverage}; # show coverage by default
   #$options{show_consensus} = $options{show_reads} unless defined $options{show_consensus}; # show consensus if showing reads
   $options{show_consensus} = 1 unless defined $options{show_consensus};
-  
+
   # check threshold
   my $slice = $self->{'container'};
   if (my $threshold = $self->my_config('threshold')) {
@@ -73,9 +73,9 @@ sub render_normal {
       return;
     }
   }
-  
+
   $self->{_yoffset} = 0; # used to track the y offset as we draw
-  
+
   # wrap the rendering within a timeout alarm
   my $timeout = 30; # seconds
   eval {
@@ -114,14 +114,14 @@ sub reset {
 sub bam_adaptor {
 ## get a bam adaptor
   my $self = shift;
- 
+
   my $url = $self->my_config('url');
   if ($url) { ## remote bam file
     if ($url =~ /\#\#\#CHR\#\#\#/) {
       my $region = $self->{'container'}->seq_region_name;
       $url =~ s/\#\#\#CHR\#\#\#/$region/g;
     }
-    $self->{_cache}->{_bam_adaptor} ||= Bio::EnsEMBL::IO::Adaptor::BAMAdaptor->new($url);
+    $self->{_cache}->{_bam_adaptor} ||= Bio::EnsEMBL::IO::Adaptor::HTSAdaptor->new($url);
   }
   else { ## Local bam file
     my $config    = $self->{'config'};
@@ -138,7 +138,7 @@ sub bam_adaptor {
       $self->{_cache}->{_bam_adaptor} ||= $df->get_ExternalAdaptor(undef, 'BAM');
     }
   }
-   
+
   return $self->{_cache}->{_bam_adaptor};
 }
 
@@ -159,13 +159,13 @@ sub features {
 sub consensus_features {
 ## get the consensus features
   my $self = shift;
- 
+
   unless ($self->{_cache}->{consensus_features}) {
     my $slice = $self->{'container'};
     my $START = $self->{'container'}->start;
     my $consensus = $self->bam_adaptor->fetch_consensus($slice->seq_region_name, $slice->start, $slice->end);
     my @features;
-    
+
     foreach my $a (@$consensus) {
       my $x = $a->{x} - $START+1;
       my $feat = Bio::EnsEMBL::Feature->new_fast( {
@@ -175,7 +175,7 @@ sub consensus_features {
                          'seqname' => $a->{bp},
                         } );
 
-#      my $feat = Bio::EnsEMBL::Feature->new( 
+#      my $feat = Bio::EnsEMBL::Feature->new(
 #        -start => $x,
 #        -end => $x,
 #        -strand => 1,
@@ -187,10 +187,10 @@ sub consensus_features {
       $features[$x-1] = $feat;
     }
 
-    
+
     $self->{_cache}->{consensus_features} = \@features;
   }
-  
+
   return $self->{_cache}->{consensus_features};
 }
 
@@ -218,7 +218,7 @@ sub feature_title {
 #    $title .= sprintf("; Mate: %s", ($f->flag & 0x80) ? 'Second' : ($f->flag & 0x40) ? 'First' : 'Unknown');
 #  }
 
-  my $title = $f->qname . 
+  my $title = $f->qname .
               "; Score: ".       $f->qual .
               "; Cigar: ".       $f->cigar_str .
               "; Location: ".    $seq_id . ":" . $f->start . "-" . $f->end .
@@ -261,11 +261,11 @@ sub render_caption {
 
   $self->push($self->Text({
         'x'         => 0,
-        'y'         => $self->{_yoffset}, 
+        'y'         => $self->{_yoffset},
         'height'    => $fontsize_i + 2,
         'font'      => $fontname_i,
         'ptsize'    => $fontsize_i,
-        'colour'    => $self->my_colour('consensus'), 
+        'colour'    => $self->my_colour('consensus'),
         'text'      => $self->my_config('short_name') || $self->my_config('name'),
    }));
 
@@ -275,13 +275,13 @@ sub render_caption {
 sub render_coverage {
 ## render coverage histogram with consensus text overlaid
   my ($self, %options) = @_;
-  
+
   # defaults
   $options{show_consensus} = 1 unless defined $options{show_consensus};
-  
+
   my @coverage = @{$self->calc_coverage};
 
-  
+
   my $max = (sort {$b <=> $a} @coverage)[0];
   return if $max == 0; # nothing to show
 
@@ -312,12 +312,12 @@ sub render_coverage {
 
   foreach my $i (0..$#coverage) {
     my $cvrg = $coverage[$i];
-    my $cons = $consensus[$i]; 
-    
+    my $cons = $consensus[$i];
+
     my $title = $cvrg;
     my $sval;
 
-    if ($cvrg > $max) { $cvrg = $max }; 
+    if ($cvrg > $max) { $cvrg = $max };
 
     my $sval   = $smax * $cvrg / $max;
 
@@ -328,15 +328,15 @@ sub render_coverage {
     my $h1 = int($smax/$scale - $y );
 
     #print STDERR " Coverage: y = $y h1 = $h1   sval = $sval  scale = $scale  smax = $smax\n";
-    
+
     my $colour;
     if ($ppbp < 1 or !$options{show_consensus}) {
       $colour =  $self->my_colour('consensus');
     } else {
       $colour = $cons ? $self->my_colour(lc($cons->seqname)) : $self->my_colour('consensus');
     }
-    
-    # coverage rectangle          
+
+    # coverage rectangle
     $self->push($self->Rect({
       'x'      => $i,
       'y'      => $self->{_yoffset} + $y,
@@ -346,7 +346,7 @@ sub render_coverage {
       'absolutex' => $ppbp < 1 ? 1 : 0,
       'title' => $title,
     }));
-    
+
     # consensus text
     if ($options{show_consensus} and $text_fits and $cons) {
       $self->push($self->Text({
@@ -359,7 +359,7 @@ sub render_coverage {
         'text'      => $cons->seqname,
         'absolutey' => 1,
       }));
-    };    
+    };
   }
 
   $self->push($self->Rect({
@@ -369,7 +369,7 @@ sub render_coverage {
     'height' => 0,
     'colour' => 'background1',
   }));
-  
+
   # max score label
   my $display_max_score = $max;
 
@@ -394,9 +394,9 @@ sub render_coverage {
     'absolutex'     => 1,
     'absolutewidth' => 1,
   }));
-  
+
   $self->{_yoffset} += $smax / $scale + 2; # add on height of area just drawn
- 
+
   $self->push( $self->Text({
     'text'          => '0',
     'width'         => $res_i[2],
@@ -405,7 +405,7 @@ sub render_coverage {
     'ptsize'        => $fontsize_i,
     'halign'        => 'right',
     'valign'        => 'top',
-    'colour'        => 'slategray', 
+    'colour'        => 'slategray',
     'height'        => $textheight_i,
     'y'             => $self->{_yoffset} - ($textheight_i + 2),
     'x'             => -4 - $res_i[2],
@@ -413,7 +413,7 @@ sub render_coverage {
     'absolutex'     => 1,
     'absolutewidth' => 1,
   }));
- 
+
   return;
 }
 
@@ -432,7 +432,7 @@ sub render_coverage {
 #  print STDERR "Filtering " . scalar(@$features) . " features maximum depth $depth\n";
 #  FEAT: foreach my $f (@$features) {
 #    my $fstart = $f->start;
-#   
+#
 #    my $max = $num_rows+1 > $depth ? $depth : $num_rows+1;
 #
 #    for (my $row_num=0; $row_num<$max; $row_num++) {
@@ -443,7 +443,7 @@ sub render_coverage {
 #        if ($row_num == $num_rows) {
 #          $num_rows++;
 #        }
-#        next FEAT; 
+#        next FEAT;
 #      }
 #    }
 #  }
@@ -503,7 +503,7 @@ AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart,
     int max;
     int row_num;
 
-      
+
     if (elem == NULL) {
       continue;
     }
@@ -525,7 +525,7 @@ AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart,
 
     //fprintf(stderr,"fstart = %d\n",fstart);
     //fflush(stderr);
-   
+
     max = num_rows+1 > depth ? depth : num_rows+1;
 
     for (row_num=0; row_num<max; row_num++) {
@@ -553,7 +553,7 @@ AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart,
         if (row_num == num_rows) {
           num_rows++;
         }
-        break; 
+        break;
       }
     }
   }
@@ -571,7 +571,7 @@ END_OF_C_CODE
 sub render_sequence_reads {
 ## render reads with sequence overlaid and variations from consensus highlighted
   my ($self, %options) = @_;
-  
+
   # defaults
   unless (defined $options{max_depth}) {
     $options{max_depth} = $self->my_config('max_depth') || 50;
@@ -584,7 +584,7 @@ sub render_sequence_reads {
 
   my $features = pre_filter_depth($fs, $options{max_depth},$ppbp,$slice->start,$slice->end);
      $features = [reverse @$features] if $slice->strand == -1;
-  
+
   # text stuff
   my($font, $fontsize) = $self->get_font_details( $self->can('fixed') ? 'fixed' : 'innertext' );
   my($tmp1, $tmp2, $font_w, $font_h) = $self->get_text_width(0, 'X', '', 'font' => $font, 'ptsize' => $fontsize);
@@ -595,7 +595,7 @@ sub render_sequence_reads {
   my @consensus;
   if ($text_fits) {
     @consensus = @{$self->consensus_features};
-    $h = 8; 
+    $h = 8;
   }
 
   my $row_height = 1.3 * $h;
@@ -616,28 +616,28 @@ sub render_sequence_reads {
     my $fend = $f->end;
 
     next unless $fstart and $fend;
-    
+
     # init
    # my $start = $fstart - $slicestart;
    # my $end = $fend - $slicestart;
-    
+
     my $start = $slicestrand == -1 ? $sliceend - $fend   + 1 : $fstart - $slicestart;
     my $end   = $slicestrand == -1 ? $sliceend - $fstart + 1 : $fend   - $slicestart;
-    
-    
+
+
     $start = 0 if $start < 0;
     $end = 0 if $end < 0;
     $end = $slicelength if $end > $slicelength;
     my $width = $end - $start + 1;
-    
+
     # bump it to the next row with enough free space
     my $bump_start = int($start * $ppbp);
     my $bump_end = $bump_start + int($width * $ppbp) + 1;
     my $row = $self->bump_sorted_row( $bump_start, $bump_end );
-    
+
     if ($row > $options{max_depth}) {
       # not interested in this row as beyond our display limit
-      next; 
+      next;
     }
 
     # new composite object
@@ -646,8 +646,8 @@ sub render_sequence_reads {
 #      'title' => ($text_fits ? $self->feature_title($f) : $self->feature_brief_title($f)),
       'title' => &feature_title($self, $f),
     });
-    
-    # draw box    
+
+    # draw box
     $composite->push($self->Rect({
       'x' => $start,
       'y' => 0,
@@ -655,17 +655,17 @@ sub render_sequence_reads {
       'height' => $h,
       'colour'=> $read_colour,
       'absolutey' => 1,
-    }));   
-    
+    }));
+
     # draw lines to indicate direction of read
     if (($f->reversed and $fstart >= $slicestart) or (!$f->reversed and $fend <= $sliceend)) {
       my $line_length_pix = 2;
       $line_length_pix = $width * $ppbp if $width * $ppbp < $line_length_pix;
       my $stroke_width_pix = 1;
-      
+
       # colour the arrow based on read type
       my $arrow_colour = $self->my_colour('type_' . $self->_read_type($f));
-      
+
       # horizontal
       $composite->push($self->Rect({
         'x' => $f->reversed ^ $slicestrand == -1 ? $start : $end + 1 - ($line_length_pix / $ppbp),
@@ -674,7 +674,7 @@ sub render_sequence_reads {
         'height' => $stroke_width_pix,
         'colour'=> $arrow_colour,
         'absolutey' => 1,
-      }));  
+      }));
 
       if ($h ==8) {
         # vertical
@@ -685,10 +685,10 @@ sub render_sequence_reads {
           'height' => $h,
           'colour'=> $arrow_colour,
           'absolutey' => 1,
-        }));  
+        }));
       }
     }
-    
+
     # render text
     if ($text_fits) {
       # SMJS Moved insert rendering inside if block to save having to do get_sequence_window calls all the time
@@ -698,17 +698,17 @@ sub render_sequence_reads {
       if (@{$inserts}) {
         foreach my $ins (@{$inserts}) {
           $composite->push($self->Rect({
-            'x' => $ins->{pos}, 
-            'y' => 0, 
+            'x' => $ins->{pos},
+            'y' => 0,
             'width' => 1,
-            'height' => $h, 
+            'height' => $h,
             'colour'=> $self->my_colour('read_insert'),
             'absolutey' => 1,
             'zindex' => 10,
           }));
         }
       }
-      
+
 
       my $i = 0;
       foreach( split //, $seq ) {
@@ -728,16 +728,16 @@ sub render_sequence_reads {
         $i++;
       }
     }
-        
+
     $composite->y($self->{_yoffset} + $row_height * $row);
     $max_y = $composite->y if $composite->y > $max_y; # record max y extent
-    
+
     # add it to the track
     $self->push($composite);
     $self->highlight($f, $composite, $ppbp, $h, 'highlight1');
     $nrendered++;
   }
-    
+
   $self->{_yoffset} += $max_y + $h;
 
   my $features_bumped = scalar(@{&features($self)}) - $nrendered;
@@ -749,14 +749,14 @@ sub render_sequence_reads {
     my $y_pos = 2 + $self->{'config'}->texthelper()->height($self->{'config'}->species_defs->ENSEMBL_STYLE->{'GRAPHIC_FONT'});
     $self->errorTrack( sprintf( q(%s features from '%s' not shown), $features_bumped, $self->my_config('name')), undef, $max_y );
   }
-  
+
   return;
 }
 
 sub _read_type {
   my ($self, $f) = @_;
   my $type = '';
-  
+
   if ($f->proper_pair) {
     $type = 'regular';
   } elsif ($f->paired) {
@@ -768,7 +768,7 @@ sub _read_type {
   } else {
     $type = 'singleton'
   }
-  
+
   return $type;
 }
 
@@ -801,7 +801,7 @@ sub highlight {
 sub _get_sequence_window {
 ## return just the sequence within the current window
   my ($self, $f, $s) = @_;
-  
+
   my $slice = $self->{container};
   my $fend = $f->end;
 
@@ -817,17 +817,17 @@ sub _get_sequence_window {
   if ($end > $slice->length) {
     $seq = substr($seq, 0, $slice->end - $fend);
   }
-  
+
   $inserts = [grep {$_->{pos} >= $start && $_->{pos} <= $end } @{$inserts || []}];
-  
+
   return $seq, $inserts;
-  
+
 }
 
 sub _get_sequence {
 ## build the sequence for the given feature based on the cigar string
   my ($self, $a, $s) = @_;
-  
+
 #  my $seq = $a->qdna;
   my $seq = $a->query->dna;
   my $cl = $a->cigar_str;
@@ -839,7 +839,7 @@ sub _get_sequence {
 
   if ($cl =~ /D|I|S|N/) {
     my @c1 = split /(M|D|I|S|N)/, $cl;
-   
+
     my $s2;
     my $i = 0;
     my $pos = 0;
@@ -884,7 +884,7 @@ sub _get_sequence {
 sub calc_coverage {
 ## calculate the coverage
   my ($self) = @_;
-  
+
   my $features = &features($self);
 
   my $slice = $self->{'container'};
@@ -907,7 +907,7 @@ sub calc_coverage {
 
   my $coverage = $self->c_coverage($features, $sample_size, $lbin, $START);
      $coverage = [reverse @$coverage] if $slice->strand == -1;
-  
+
   #print STDERR "Done coverage, ended with type " . ref($coverage) . "\n";
   return $coverage;
 }
@@ -979,7 +979,7 @@ END_OF_CALC_COV_C_CODE
 ## calculate the coverage
 #sub calc_coverage {
 #  my ($self) = @_;
-#  
+#
 #  my $features = $self->features;
 #
 #  my $slice = $self->{'container'};
