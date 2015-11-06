@@ -63,14 +63,15 @@ sub content {
                    $feature->seq_region_start,
                    $feature->seq_region_end);
   $self->add_entry ({
-    type   => 'bp',
-    label => $r,
-    link  => $hub->url({ r => $r, type => 'Location',  action => 'View' })
+    type        => 'bp',
+    label       => $r,
+    link        => $hub->url({ r => $r, type => 'Location',  action => 'View' }),
+    link_class  => '_location_change _location_mark'
   });
 
   my @gene_links;
   foreach (@gene_stable_ids) {
-    push @gene_links, sprintf('<a href="%s">%s</a>', $hub->url({'type' => 'Gene', 'action' => 'Summary', 'g' => $_}), $_);
+    push @gene_links, sprintf('<a href="%s">%s</a>', $hub->url({'type' => 'Gene', 'action' => 'Summary', 'g' => $_, 'db' => 'core'}), $_);
   }
   $self->add_entry ({
     type      => 'Target(s)',

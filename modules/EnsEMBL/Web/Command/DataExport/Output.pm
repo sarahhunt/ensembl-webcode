@@ -26,6 +26,7 @@ use RTF::Writer;
 use Bio::AlignIO;
 use IO::String;
 use Bio::EnsEMBL::Compara::Graph::OrthoXMLWriter;
+use Bio::EnsEMBL::Compara::Graph::HomologyPhyloXMLWriter;
 use Bio::EnsEMBL::Compara::Graph::GeneTreePhyloXMLWriter;
 use Bio::EnsEMBL::Compara::Graph::GeneTreeNodePhyloXMLWriter;
 use Bio::EnsEMBL::Compara::Graph::CAFETreePhyloXMLWriter;
@@ -137,7 +138,7 @@ sub process {
     $url_params->{'__clear'}        = 1;
     ## Pass parameters needed for Back button to work
     my @core_params = keys %{$hub->core_object('parameters')};
-    push @core_params, qw(export_action data_type component align);
+    push @core_params, qw(export_action data_type data_action component align g1);
     push @core_params, $self->config_params; 
     foreach my $species (grep { /species_/ } $hub->param) {
       push @core_params, $species;
@@ -225,6 +226,11 @@ sub write_rtf {
       }
 
       $class = join ' ', sort { $class_to_style->{$a}[0] <=> $class_to_style->{$b}[0] } split /\s+/, $class;
+
+      ## RTF has no equivalent of text-transform, so we must manually alter the text
+      if ($class =~ /\b(el)\b/) {
+        $seq->{'letter'} = lc($seq->{'letter'});
+      }
 
       ## Add species name at beginning of each line if this is an alignment
       ## (on pages, this is done by build_sequence, but that adds HTML)
@@ -336,7 +342,9 @@ sub _class_to_style {
       co   => [ $i++, { 'background-color' => "#$styles->{'SEQ_CODON'}{'default'}" } ],
       aa   => [ $i++, { 'color' => "#$styles->{'SEQ_AMINOACID'}{'default'}" } ],
       end  => [ $i++, { 'background-color' => "#$styles->{'SEQ_REGION_CHANGE'}{'default'}", 'color' => "#$styles->{'SEQ_REGION_CHANGE'}{'label'}" } ],
-      bold => [ $i++, { 'font-weight' => 'bold' } ]
+      bold => [ $i++, { 'font-weight' => 'bold' } ],
+      el   => [$i++, { 'color' => "#$styles->{'SEQ_EXON0'}{'default'}", 'text-transform' => 'lowercase' } ],
+
     );
 
     foreach (keys %$var_styles) {
@@ -382,7 +390,7 @@ sub write_fasta {
       peptide => sub { my ($t, $id, $type) = @_; eval { [[ "$id peptide: " . $t->translation->stable_id . " pep:$type", $t->translate->seq ]] }},
       utr3    => sub { my ($t, $id, $type) = @_; eval { [[ "$id utr3:$type", $t->three_prime_utr->seq ]] }},
       utr5    => sub { my ($t, $id, $type) = @_; eval { [[ "$id utr5:$type", $t->five_prime_utr->seq ]] }},
-      exon    => sub { my ($t, $id, $type) = @_; eval { [ map {[ "$id " . $_->id . " exon:$type", $_->seq->seq ]} @{$t->get_all_Exons} ] }},
+      exon    => sub { my ($t, $id, $type) = @_; eval { [ map {[ "$id " . $_->display_id . " exon:$type", $_->seq->seq ]} @{$t->get_all_Exons} ] }},
       intron  => sub { my ($t, $id, $type) = @_; eval { [ map {[ "$id intron " . $intron_id++ . ":$type", $_->seq ]} @{$t->get_all_Introns} ] }}
   };
 
@@ -559,20 +567,29 @@ sub write_phyloxml {
 
   my $tree = $component->get_export_data('genetree');
 
-  my $type = ref($component) =~ /SpeciesTree/ ? 'CAFE' : 'Gene';
-  $type .= 'Tree';
-  $type .= 'Node' if ref($tree) =~ /Node/;
+  my ($type, $method);
+  if (ref($component) =~ /Tree/) {
+    $method = 'trees';
+    $type = ref($component) =~ /SpeciesTree/ ? 'CAFE' : 'Gene';
+    $type .= 'Tree';
+    $type .= 'Node' if ref($tree) =~ /Node/;
+  }
+  else {
+    $method = 'homologies';
+    $type = 'Homology';
+  }
   my $class = sprintf('Bio::EnsEMBL::Compara::Graph::%sPhyloXMLWriter', $type);
 
   my $handle = IO::String->new();
   my $w = $class->new(
-    -SOURCE       => $cdb eq 'compara' ? $SiteDefs::ENSEMBL_SITETYPE:'Ensembl Genomes',
-    -ALIGNED      => $hub->param('aligned') eq 'on' ? 1 : 0,
-    -CDNA         => $hub->param('cdna') eq 'on' ? 1 : 0,
-    -NO_SEQUENCES => $hub->param('no_sequences') eq 'on' ? 1 : 0,
-    -HANDLE       => $handle,
+      -SOURCE       => $cdb eq 'compara' ? $SiteDefs::ENSEMBL_SITETYPE:'Ensembl Genomes',
+      -ALIGNED      => $hub->param('aligned') eq 'on' ? 1 : 0,
+      -CDNA         => $hub->param('cdna') eq 'on' ? 1 : 0,
+      -NO_SEQUENCES => $hub->param('no_sequences') eq 'on' ? 1 : 0,
+      -HANDLE       => $handle,
   );
-  $self->_writexml('trees', $tree, $handle, $w);
+
+  $self->_writexml($method, $tree, $handle, $w);
 }
 
 sub write_orthoxml {

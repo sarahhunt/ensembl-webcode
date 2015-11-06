@@ -61,10 +61,12 @@ BEGIN {
 ## error pages!
 ## PLUGINS!!!!!!!!!!!!
 
+sub static_cache_hook {} # Overridden in plugins (eg nginx)
+
 sub handler {
   my $r       = shift;
   my $uri     = $r->uri;
-  my $content = $MEMD ? $MEMD->get("$SiteDefs::ENSEMBL_STATIC_SERVER$uri") : undef;
+  my $content = $MEMD ? $MEMD->get("$SiteDefs::ENSEMBL_STATIC_BASE_URL$uri") : undef;
 
   if ($content) {
     $r->headers_out->set('X-MEMCACHED'    => 'yes');
@@ -84,13 +86,7 @@ sub handler {
     ## Not temporary static files are pluggable:
     unless ($file =~ s/^$SiteDefs::ENSEMBL_TMP_URL_IMG/$SiteDefs::ENSEMBL_TMP_DIR_IMG/g + $file =~ s/^$SiteDefs::ENSEMBL_TMP_URL/$SiteDefs::ENSEMBL_TMP_DIR/g) {
       ## walk through plugins tree and search for the file in all htdocs dirs
-      foreach my $dir (@HTDOCS_TRANS_DIRS) {
-        my $f = sprintf $dir, $file;
-        if (-d $f or -r $f) {
-          $file = $f;
-          last;
-        }
-      }
+      $file = htdoc_dir($file, $r);
     }
 
     return DECLINED if $file eq $uri; # absolute file path provided via url
@@ -108,8 +104,9 @@ sub handler {
         $content = <FILE>;
         close FILE;
       }
-      
-      $MEMD->set("$SiteDefs::ENSEMBL_STATIC_SERVER$uri", $content, undef, 'STATIC') if $MEMD;
+
+      $MEMD->set("$SiteDefs::ENSEMBL_STATIC_BASE_URL$uri", $content, undef, 'STATIC') if $MEMD;
+      static_cache_hook($uri,$content);
       
       my @file_info = stat($file);
       $r->headers_out->set('Last-Modified'  => HTTP::Date::time2str($file_info[9]));
@@ -130,5 +127,20 @@ sub mime_type {
   my $mimeobj = $MIME->mimeTypeOf($file);
   return $mimeobj ? $mimeobj->type : 'text/plain';
 }
+
+#overwritten in mobile plugin
+sub htdoc_dir { 
+  my ($file, $r) = @_;
+  
+  foreach my $dir (@HTDOCS_TRANS_DIRS) {
+    my $f = sprintf $dir, $file;
+    if (-d $f or -r $f) {
+      $file = $f;
+      last;
+    }
+  }
+  return $file;
+}
+
 
 1;

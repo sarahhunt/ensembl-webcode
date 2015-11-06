@@ -25,6 +25,7 @@ use HTML::Entities qw(encode_entities decode_entities);
 use JSON           qw(from_json);
 
 use EnsEMBL::Web::Document::Renderer::GzFile;
+use Image::Minifier qw(generate_sprites);
 
 use base qw(EnsEMBL::Web::Root);
 
@@ -443,6 +444,10 @@ sub render_HTML {
   }
   
   $r->content_type('text/html; charset=utf-8') unless $r->content_type;
+  my $ie = $self->hub->ie_version;
+  unless($ie and $ie < 8) {
+    $content = generate_sprites($self->hub->species_defs,$content);
+  }
 
   print  $content;
   return $content;
@@ -473,10 +478,12 @@ sub html_template {
   $self->set_doc_type('HTML',  '5');
   $self->add_body_attr('id',    'ensembl-webpage');
   $self->add_body_attr('class', 'mac')                               if $ENV{'HTTP_USER_AGENT'} =~ /Macintosh/;
-  $self->add_body_attr('class', "ie ie$1" . ($1 < 8 ? ' ie67' : '')) if $ENV{'HTTP_USER_AGENT'} =~ /MSIE (\d+)/ && $1 <  9;
+  my $ie = $self->hub->ie_version;
+  $self->add_body_attr('class', "ie ie$ie" . ($ie < 8 ? ' ie67' : '')) if $ie and $ie < 9;
   $self->add_body_attr('class', "ienew ie$1")                        if $ENV{'HTTP_USER_AGENT'} =~ /MSIE (\d+)/ && $1 >= 9;
   $self->add_body_attr('class', 'no_tabs')                           unless $elements->{'tabs'};
   $self->add_body_attr('class', 'static')                            if $self->isa('EnsEMBL::Web::Document::Page::Static');
+  $self->add_body_attr('data-pace',$SiteDefs::PACED_MULTI||8);
   
   my $species_path        = $self->species_defs->species_path;
   my $species_common_name = $self->species_defs->SPECIES_COMMON_NAME;
@@ -539,6 +546,9 @@ sub html_template {
         </div>
         <div id="$footer_id">
           <div class="column-wrapper">$elements->{'copyright'}$elements->{'footerlinks'}
+            <p class="invisible">.</p>
+          </div>
+          <div class="column-wrapper">$elements->{'fatfooter'}
             <p class="invisible">.</p>
           </div>
         </div>

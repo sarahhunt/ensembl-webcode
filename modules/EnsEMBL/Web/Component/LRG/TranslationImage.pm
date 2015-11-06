@@ -31,7 +31,7 @@ sub _init {
 
 sub content {
   my $self        = shift;
-  my $object      = $self->object;
+  my $object      = $self->object || $self->hub->core_object('lrg');
   my $transcript  = $self->get_lrg_transcript;
   my $translation = $transcript->translation_object;
   
@@ -58,9 +58,12 @@ sub content {
   
   $image->imagemap = 'yes';
   $image->{'panel_number'} = 'translation';
-  $image->set_button('drag', 'title' => 'Drag to select region');
+  $image->set_button('drag', 'title' => 'Drag to select region'); 
 
-  return sprintf '<h2>Protein ID: %s</h2><h3>(Transcript ID: %s)</h3>%s', $peptidie->display_id, $peptide->external_name || $peptide->stable_id, $image->render;
+  my $external_name = $transcript->Obj->external_name;
+  my $display_id = ($external_name && $external_name ne '') ? $external_name : $transcript->Obj->stable_id;
+
+  return sprintf '<h2>Protein ID: %s</h2><h3>(Transcript ID: %s)</h3>%s', $peptide->display_id, $display_id, $image->render;
 }
 
 sub get_lrg_transcript {

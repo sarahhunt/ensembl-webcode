@@ -234,7 +234,7 @@ sub _wrap_content {
 
 sub get_content {
   my ($self, $function) = @_;
-  my $cache = $self->mcacheable && $self->ajaxable && !$self->renderer->{'_modal_dialog_'} ? $self->hub->cache : undef;
+  my $cache = $self->mcacheable && $self->ajaxable && $self->renderer && !$self->renderer->{'_modal_dialog_'} ? $self->hub->cache : undef;
   my $content;
   
   if ($cache) {
@@ -420,11 +420,32 @@ sub append_s_to_plural {
 }
 
 sub helptip {
-  ## Returns html for an info icon which displays the given helptip when hovered
-  ## @param Tip text (TODO - make it HTML compatiable)
-  ## @param Optional - icon name to override the default info icon
-  my ($self, $tip, $icon) = @_;
-  return sprintf '<img src="%s/i/16/%s.png" alt="(?)" class="_ht helptip-icon" title="%s" />', $self->static_server, $icon || 'info', $tip;
+  ## Returns a dotted underlined element with given text and hover helptip
+  ## @param Display html
+  ## @param Tip html
+  my ($self, $display_html, $tip_html) = @_;
+  return $tip_html ? sprintf('<span class="ht _ht"><span class="_ht_tip hidden">%s</span>%s</span>', encode_entities($tip_html), $display_html) : $display_html;
+}
+
+sub glossary_helptip {
+  ## Creates a dotted underlined element that has a mouseover glossary helptip (helptip text fetched from glossary table of help db)
+  ## @param Display html
+  ## @param Entry to match the glossary key to fetch help tip html (if not provided, use the display html as glossary key)
+  my ($self, $display_html, $entry) = @_;
+
+  $entry  ||= $display_html;
+  $entry    = $self->get_glossary_entry($entry);
+
+  return $self->helptip($display_html, $entry);
+}
+
+sub get_glossary_entry {
+  ## Gets glossary value for a given entry
+  ## @param Entry key to lookup against the glossary
+  ## @return Glossary description (possibly HTML)
+  my ($self, $entry) = @_;
+
+  return $self->hub->glossary_lookup->{$entry} // '';
 }
 
 sub error_panel {
@@ -519,11 +540,12 @@ sub ajax_url {
   my $self     = shift;
   my $function = shift;
   my $params   = shift || {};
+  my $extra    = shift || 'Component';
   my (undef, $plugin, undef, $type, @module) = split '::', ref $self;
 
   my $module   = sprintf '%s%s', join('__', @module), $function && $self->can("content_$function") ? "/$function" : '';
 
-  return $self->hub->url('Component', { type => $type, action => $plugin, function => $module, %$params }, undef, !$params->{'__clear'});
+  return $self->hub->url($extra, { type => $type, action => $plugin, function => $module, %$params }, undef, !$params->{'__clear'});
 }
 
 sub EC_URL {
@@ -533,16 +555,6 @@ sub EC_URL {
      $url_string =~ s/-/\?/g;
   
   return $self->hub->get_ExtURL_link("EC $string", 'EC_PATHWAY', $url_string);
-}
-
-sub glossary_mouseover {
-  my ($self, $entry, $display_text) = @_;
-  $display_text ||= $entry;
-  
-  my %glossary = $self->hub->species_defs->multiX('ENSEMBL_GLOSSARY');
-  (my $text = $glossary{$entry}) =~ s/<.+?>//g;
-
-  return $text ? qq{<span class="glossary_mouseover">$display_text<span class="floating_popup">$text</span></span>} : $display_text;
 }
 
 sub modal_form {
@@ -575,7 +587,7 @@ sub modal_form {
 sub new_image {
   my $self        = shift;
   my $hub         = $self->hub;
-  my %formats     = EnsEMBL::Web::Constants::EXPORT_FORMATS;
+  my %formats     = EnsEMBL::Web::Constants::IMAGE_EXPORT_FORMATS;
   my $export      = $hub->param('export');
   my $id          = $self->id;
   my $config_type = $self->view_config ? $self->view_config->image_config : undef;
@@ -661,33 +673,26 @@ sub new_form {
 }
 
 sub _export_image {
-  my ($self, $image, $flag) = @_;
+  my ($self, $image) = @_;
   my $hub = $self->hub;
   
-  $image->{'export'} = 'iexport' . ($flag ? " $flag" : '');
+  $image->{'export'} = 'iexport';
 
-  my ($format, $scale) = $hub->param('export') ? split /-/, $hub->param('export'), 2 : ('', 1);
-  $scale eq 1 if $scale <= 0;
-  
-  my %formats = EnsEMBL::Web::Constants::EXPORT_FORMATS;
+  my @export = split(/-/,$hub->param('export'));
+  my $format = (shift @export)||'';
+  my %params = @export;
+  my $scale = abs($params{'s'}) || 1;
+  my $contrast = abs($params{'c'}) || 1;
+
+  my %formats = EnsEMBL::Web::Constants::IMAGE_EXPORT_FORMATS;
   
   if ($formats{$format}) {
     $image->drawable_container->{'config'}->set_parameter('sf',$scale);
-    (my $comp = ref $self) =~ s/[^\w\.]+/_/g;
-    my $filename = sprintf '%s-%s-%s.%s', $comp, $hub->filename($self->object), $scale, $formats{$format}{'extn'};
+    $image->drawable_container->{'config'}->set_parameter('contrast',$contrast);
     
-    if ($hub->param('download')) {
-      $hub->input->header(-type => $formats{$format}{'mime'}, -attachment => $filename);
-    } else {
-      $hub->input->header(-type => $formats{$format}{'mime'}, -inline => $filename);
-    }
+    my $path = $image->render($format);
+    $hub->param('file', $path);
 
-    if ($formats{$format}{'extn'} eq 'txt') {
-      print $image->drawable_container->{'export'};
-      return 1;
-    }
-
-    $image->render($format);
     return 1;
   }
   
@@ -695,7 +700,7 @@ sub _export_image {
 }
 
 sub toggleable_table {
-  my ($self, $title, $id, $table, $open, $extra_html) = @_;
+  my ($self, $title, $id, $table, $open, $extra_html, $for_render) = @_;
   my @state = $open ? qw(show open) : qw(hide closed);
   
   $table->add_option('class', $state[0]);
@@ -708,7 +713,7 @@ sub toggleable_table {
       <h2><a rel="%s_table" class="toggle _slide_toggle %s" href="#%s_table">%s</a></h2>
       %s
     </div>',
-    $extra_html, $id, $state[1], $id, $title, $table->render
+    $extra_html, $id, $state[1], $id, $title, $table->render(@{$for_render||[]})
   ); 
 }
 

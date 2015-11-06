@@ -61,8 +61,7 @@ use EnsEMBL::Web::Registry;
 my $conf = EnsEMBL::Web::SpeciesDefs->new;
 
 # Setup the ORM DB connections before loading files
-eval { require ORM::EnsEMBL::Rose::DbConnection; };
-my $orm_connections = $@ ? {} : ORM::EnsEMBL::Rose::DbConnection->register_from_speciesdefs($conf);
+my $orm_connections = $conf->register_orm_databases;
 
 if ($conf->ENSEMBL_MART_ENABLED > 0) {
   require 'BioMart/Initializer.pm';
@@ -204,7 +203,16 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
       map { sprintf '%4d  %-6.6s %-32.32s %s', ++$i, $conf->get_config($_, 'SPECIES_RELEASE_VERSION'), $_, $conf->get_config($_, 'SPECIES_COMMON_NAME') } @{$conf->ENSEMBL_DATASETS}
     );
   }
-  
+ 
+  # Timestamp file for last start
+  open(STARTED,'>',"${SiteDefs::ENSEMBL_SERVERROOT}/ensembl-webcode/conf/started");
+  close STARTED;
+  if($SiteDefs::MEMOIZE_ENABLED) {
+    warn "MEMOIZE ${SiteDefs::ENSEMBL_TMP_DIR}/procedure/started\n";
+    open(STARTED,'>',"${SiteDefs::ENSEMBL_TMP_DIR}/procedure/started");
+    close STARTED;
+  }
+ 
   warn sprintf '
 ==============================================================================
  Server information:
@@ -213,6 +221,8 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
  Ensembl version:    %d
 
  Database Host:      %s
+
+ Session database:   %s on %s:%s
 
  ORM Databases:      %s
 
@@ -237,6 +247,7 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
  Identities used:    %s
 
  Plugins installed:  %s
+ Cohort:             %s
 
 ==============================================================================
 
@@ -245,7 +256,9 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
 
   $conf->DATABASE_HOST,
 
-  (keys %$orm_connections ? join("\n                     ", map { sprintf '%-15s %s on %s', "$_:", $orm_connections->{$_}->database, $orm_connections->{$_}->host } keys %$orm_connections) : 'None'),
+  (map { my $db = $_; map $db->{$_}, qw(NAME HOST PORT) } $conf->multidb->{'DATABASE_SESSION'}),
+
+  (keys %$orm_connections ? join("\n                     ", map { sprintf '%-15s %s on %s:%s', "$_:", $orm_connections->{$_}->database, $orm_connections->{$_}->host, $orm_connections->{$_}->port } keys %$orm_connections) : 'None'),
 
   $conf->ENSEMBL_BASE_URL,
   $conf->ENSEMBL_PROTOCOL, $conf->ENSEMBL_SERVER,     $conf->ENSEMBL_PORT,
@@ -264,7 +277,8 @@ if (Apache2::ServerUtil::restart_count == 1) { # Only parse the config on first 
 
   @xs_enabled?join("\n".(' ' x 21),@xs_enabled):'- none -',
   join("\n".(' 'x21),map { "$_ (".$conf->ENSEMBL_IDS_USED->{$_}.")" } sort keys %{$conf->ENSEMBL_IDS_USED}),
-  join("\n                     ", grep(/::/, map { "$_ (".join(',',@{$conf->ENSEMBL_PLUGINS_USED->{$_}||[]}).")" } @{$conf->ENSEMBL_PLUGINS || []}), $extra);
+  join("\n                     ", grep(/::/, map { "$_ (".join(',',@{$conf->ENSEMBL_PLUGINS_USED->{$_}||[]}).")" } @{$conf->ENSEMBL_PLUGINS || []}), $extra),
+  $conf->ENSEMBL_COHORT;
 }
 
 1;

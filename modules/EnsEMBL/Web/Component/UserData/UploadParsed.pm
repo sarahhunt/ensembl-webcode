@@ -25,6 +25,7 @@ use base qw(EnsEMBL::Web::Component::UserData);
 sub _init {
   my $self = shift;
   $self->cacheable(0);
+  $self->mcacheable(0);
   $self->ajaxable(1);
 }
 
@@ -34,7 +35,7 @@ sub content {
   my $url  = $self->ajax_url('ajax', {
     r            => $hub->referer->{'params'}->{'r'}[0],
     code         => $hub->param('code'),
-    _type        => $hub->param('type') || 'upload',
+    _type        => $hub->param('record_type') || 'upload',
     update_panel => 1,
     __clear      => 1
   });
@@ -55,7 +56,7 @@ sub content_ajax {
   my $formats = $hub->species_defs->multi_val('REMOTE_FILE_FORMATS');
   my $html;
   
-  unless ($format eq 'DATAHUB' && $hub->param('assembly') !~ $hub->species_defs->get_config($hub->data_species, 'ASSEMBLY_VERSION')) { ## Don't give parsing message if this is a hub and we can't show it!
+  unless ($format eq 'TRACKHUB' && $hub->param('assembly') !~ $hub->species_defs->get_config($hub->data_species, 'ASSEMBLY_VERSION')) { ## Don't give parsing message if this is a hub and we can't show it!
     if (grep /^$format$/i, @$formats) {
       $html .= '<p>We cannot parse large file formats to navigate to the nearest feature. Please select appropriate coordinates after closing this window</p>';
     } 

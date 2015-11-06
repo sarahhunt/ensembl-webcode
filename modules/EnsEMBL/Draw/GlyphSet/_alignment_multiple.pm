@@ -221,7 +221,8 @@ sub element_features {
   #  --dps
   my $mlss_ids = $self->species_defs->multi_hash->{'DATABASE_COMPARA'}->{'MLSS_IDS'};
   my $mlss_conf = $mlss_ids->{$id};
-  my $ss = $db->get_adaptor('SpeciesSet')->_uncached_fetch_by_dbID($mlss_conf->{'SPECIES_SET'});
+  my $ss = eval {$db->get_adaptor('SpeciesSet')->_uncached_fetch_by_dbID($mlss_conf->{'SPECIES_SET'})};
+  return [] if $@;
   my $ml = $db->get_adaptor('Method')->_uncached_fetch_by_dbID($mlss_conf->{'METHOD_LINK'});
   my $mlss = Bio::EnsEMBL::Compara::MethodLinkSpeciesSet->new(
     -DBID => $id,
@@ -238,14 +239,9 @@ sub element_features {
     $group_id = $feature->group_id unless ($constrained_element);
     my $cigar_line = $feature->reference_genomic_align->cigar_line unless ($constrained_element);
 
-    #Establish if the species is low coverage. Need to look at the whole GenomicAlign cigar line.
-    #Should be a better way of doing this eg comparing the high and low coverage species sets
     my $is_low_coverage_species = 0;
     unless ($constrained_element) {
-        my $ga_adaptor = $db->get_adaptor('GenomicAlign');
-        my $ref_ga = $ga_adaptor->fetch_by_dbID($feature->reference_genomic_align->{_original_dbID});
-        my $whole_cigar_line = $ref_ga->cigar_line;
-        $is_low_coverage_species = 1 if ($whole_cigar_line =~ /X/);
+        $is_low_coverage_species = $feature->reference_genomic_align->genome_db->has_karyotype ? 0 : 1;
     }
 
     

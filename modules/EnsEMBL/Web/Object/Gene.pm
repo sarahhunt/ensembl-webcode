@@ -80,23 +80,11 @@ sub availability {
       $availability->{'multiple_transcripts'} = $counts->{'transcripts'} > 1;
       $availability->{'not_patch'}            = $obj->stable_id =~ /^ASMPATCH/ ? 0 : 1; ## TODO - hack - may need rewriting for subsequent releases
       $availability->{'has_alt_alleles'} =  scalar @{$self->get_alt_alleles};
-      
+
       if ($self->database('variation')) {
-        my $phen_count  = 0;
-        my $pfa         = Bio::EnsEMBL::Registry->get_adaptor($self->species, 'variation', 'PhenotypeFeature');
-        $phen_count     = $pfa->count_all_by_Gene($self->Obj);
-
-        if (!$phen_count) {
-          my $hgncs = $obj->get_all_DBEntries('hgnc') || [];
-
-          if(scalar @$hgncs && $hgncs->[0]) {
-            my $hgnc_name = $hgncs->[0]->display_id;
-            $phen_count   = $pfa->_check_gene_by_HGNC($hgnc_name) if $hgnc_name; # this method is super-fast as it uses some direct SQL on a nicely indexed table
-          }
-        }
-        $availability->{'has_phenotypes'} = $phen_count;
+        $availability->{'has_phenotypes'} = $self->get_phenotype; 
       }
-
+      
       if ($self->database('compara_pan_ensembl')) {
         $availability->{'family_pan_ensembl'} = !!$counts->{families_pan};
         $availability->{'has_gene_tree_pan'}  = !!($pan_member && $pan_member->has_GeneTree);
@@ -141,9 +129,11 @@ sub counts {
       $counts->{'operons'} = scalar @{$obj->feature_Slice->get_all_Operons};
     }
     $counts->{structural_variation} = 0;
+
     if ($self->database('variation')){ 
       my $vdb = $self->species_defs->get_config($self->species,'databases')->{'DATABASE_VARIATION'};
       $counts->{structural_variation} = $vdb->{'tables'}{'structural_variation'}{'rows'};
+      $counts->{phenotypes} = $self->get_phenotype;
     }
     if ($member) {
       $counts->{'orthologs'}  = $member->number_of_orthologues;
@@ -174,7 +164,24 @@ sub counts {
   
   return $counts;
 }
+sub get_phenotype {
+  my $self = shift;
+  
+  my $phen_count  = 0;
+  my $pfa         = Bio::EnsEMBL::Registry->get_adaptor($self->species, 'variation', 'PhenotypeFeature');
+  $phen_count     = $pfa->count_all_by_Gene($self->Obj);
 
+  if (!$phen_count) {
+    my $hgncs = $self->Obj->get_all_DBEntries('hgnc') || [];
+
+    if(scalar @$hgncs && $hgncs->[0]) {
+      my $hgnc_name = $hgncs->[0]->display_id;
+      $phen_count   = $pfa->_check_gene_by_HGNC($hgnc_name) if $hgnc_name; # this method is super-fast as it uses some direct SQL on a nicely indexed table
+    }
+  }
+  
+  return $phen_count;
+}
 sub get_xref_available{
   my $self=shift;
   my $available = ($self->count_xrefs > 0);
@@ -239,8 +246,7 @@ sub insdc_accession {
     if($slice) {
       my $name = $self->_insdc_synonym($slice,'INSDC');
       if($name) {
-        return join(':',$slice->coord_system->name,$csv,$name,
-                      $slice->start,$slice->end,$slice->strand);
+        return join(':',$csv,$name);
       }
     }
   }
@@ -505,6 +511,15 @@ sub get_all_transcripts {
     }
   }
   return $self->{'data'}{'_transcripts'};
+}
+
+sub get_transcript_by_stable_id {
+  my ($self,$stable_id) = @_;
+
+  my $th = $self->hub->get_adaptor('get_TranscriptAdaptor');
+  my $trans = $th->fetch_by_stable_id($stable_id);
+  return undef unless $trans;
+  return $self->new_object('Transcript',$trans,$self->__data);
 }
 
 sub get_all_families {
@@ -829,6 +844,7 @@ sub fetch_homology_species_hash {
 sub get_homologue_alignments {
   my $self        = shift;
   my $compara_db  = shift || 'compara';
+  my $type        = shift || 'ENSEMBL_ORTHOLOGUES';
   my $database    = $self->database($compara_db);
   my $hub         = $self->hub;
   my $msa;
@@ -836,7 +852,7 @@ sub get_homologue_alignments {
   if ($database) {  
     my $member  = $database->get_GeneMemberAdaptor->fetch_by_stable_id($self->Obj->stable_id);
     my $tree    = $database->get_GeneTreeAdaptor->fetch_default_for_Member($member);
-    my @params  = ($member, 'ENSEMBL_ORTHOLOGUES');
+    my @params  = ($member, $type);
     my $species = [];
     foreach (grep { /species_/ } $hub->param) {
       (my $sp = $_) =~ s/species_//;

@@ -23,7 +23,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 
 use EnsEMBL::Web::Utils::RandomString qw(random_string);
-use EnsEMBL::Web::File::Utils qw/sanitise_filename get_extension get_compression/;
+use EnsEMBL::Web::File::Utils qw/sanitise_filename get_extension get_compression check_compression/;
 use EnsEMBL::Web::File::Utils::IO qw/:all/;
 use EnsEMBL::Web::File::Utils::URL qw/:all/;
 use EnsEMBL::Web::File::Utils::Memcached qw/:all/;
@@ -72,17 +72,22 @@ sub new {
 
   my $input_drivers = ['IO'];
   my $absolute = 0;
+  my $source = 'file';
   if ($args{'file'} && $args{'file'} =~ /^[http|ftp]/) {
     $absolute = 1;
+    $source = 'url';
     $input_drivers = ['URL'];
   }
   elsif ($args{'upload'}) {
     $absolute = 1;
   }
 
+  ## Note that we always store format internally as lowercase
   my $self = {
               'hub'             => $args{'hub'},
+              'format'          => $args{'format'},
               'absolute'        => $absolute,
+              'source'          => $source,
               'base_dir'        => $args{'base_dir'} || 'user',
               'base_extra'      => $args{'base_extra'},
               'input_drivers'   => $args{'input_drivers'} || $input_drivers, 
@@ -135,6 +140,15 @@ sub init {
 
     my ($name, $extension, $compression) = _parse_filename($read_name);
 
+    ## If being really paranoid about input, e.g. for user uploads
+    if ($args{'check_compression'}) {
+      my $fetched = $self->fetch;      
+      if ($fetched->{'content'}) {
+        my $content = $fetched->{'content'};
+        $compression = check_compression(\$content);
+      }
+    }
+
     $bare_name                  = $name;
     $self->{'read_name'}        = $read_name;
     $self->{'read_ext'}         = $extension;
@@ -146,12 +160,25 @@ sub init {
     $self->{'content'} = $args{'content'};
   }
 
+  $self->{'format'} ||= $args{'format'};
+
   ## Prepare to write new local file
   ## N.B. We need to allow for user-supplied names with and without extensions
   my ($name, $extension, $compression);
   my $sub_dir = $args{'sub_dir'};
 
-  if ($args{'upload'} || !$read_path) {
+  if ($args{'write_location'}) {
+    ## Refreshing a previous upload
+    $self->{'write_location'} = $args{'write_location'};
+    my @path = split('/', $args{'write_location'});
+    ($name, $extension, $compression) = _parse_filename($path[-1]);
+    $self->{'write_ext'} = $extension;
+    $self->{'write_name'} = $name.'.'.$extension;
+
+    $self->{'write_compression'} = $compression;
+    $self->{'write_name'} .= '.'.$compression if $compression;
+  }
+  elsif ($args{'upload'} || !$read_path) {
     my $filename = $args{'name'};
     if ($filename) {
 
@@ -369,10 +396,29 @@ sub code {
   return $self->{'code'};
 }
 
+sub source {
+### a
+  my $self = shift;
+  return $self->{'source'};
+}
+
 sub error {
 ### a
   my $self = shift;
   return $self->{'error'};
+}
+
+sub set_format {
+### a
+  my ($self, $format) = @_;
+  $self->{'format'} = $format;
+  return $self->{'format'};
+}
+
+sub get_format {
+### a
+  my $self = shift;
+  return lc($self->{'format'});
 }
 
 sub set_timestamp {

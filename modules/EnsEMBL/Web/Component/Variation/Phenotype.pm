@@ -20,6 +20,8 @@ package EnsEMBL::Web::Component::Variation::Phenotype;
 
 use strict;
 
+use HTML::Entities qw(encode_entities);
+use Bio::EnsEMBL::Utils::Sequence qw(reverse_comp);
 use base qw(EnsEMBL::Web::Component::Variation);
 
 sub _init {
@@ -32,16 +34,16 @@ sub content {
   my $self = shift;
   my $object = $self->object;
   my $vf     = $self->hub->param('vf');
+  my $freq_data = $object->freqs;
+  my $has_freq  = $self->check_frequencies($freq_data);
+
   my $html;
   ## first check we have uniquely determined variation
-  return $self->_info('A unique location can not be determined for this Variation', $object->not_unique_location) if $object->not_unique_location;
+  return $self->_info('A unique location can not be determined for this variant', $object->not_unique_location) if $object->not_unique_location;
 
   my $data = $object->get_external_data();
 
-  return 'We do not have any external data for this variation' unless (scalar @$data);
-
-  my $is_somatic = $object->Obj->is_somatic;
-  my $study      = ($is_somatic && $object->Obj->source =~ /COSMIC/i) ? 'Tumour site' : 'Study'; 
+  return 'We do not have any external data for this variant' unless (scalar @$data);
 
   # Select only the phenotype features which have the same coordinates as the selected variation
   my $vf_object = ($vf) ? $self->hub->database('variation')->get_VariationFeatureAdaptor->fetch_by_dbID($vf) : undef;
@@ -53,39 +55,11 @@ sub content {
     $data = \@new_data;
   }
 
-  my ($table_rows, $column_flags) = $self->table_data($data);
+  my ($table_rows, $column_flags) = $self->table_data($data, $has_freq);
   my $table      = $self->new_table([], [], { data_table => 1, sorting => [ 'disease asc' ] });
      
   if (scalar keys(%$table_rows) != 0) {
-
-    $table->add_columns(
-      { key => 'disease', title => 'Phenotype/Disease/Trait', align => 'left', sort => 'html' },
-      { key => 'source',  title => 'Source(s)',               align => 'left', sort => 'html' },
-    );
-    if ($column_flags->{'s_evidence'}) {
-      $table->add_columns({ key => 's_evidence', title => 'Supporting evidence(s)', align => 'left', sort => 'html' });
-    }
-    
-    $table->add_columns({ key => 'study', title => $study, align => 'left', sort => 'html' });
-
-    if ($column_flags->{'clin_sign'}) {
-      $table->add_columns({ key => 'clin_sign', title => 'Clinical significance', align => 'left', sort => 'html' });
-    }
-      
-    $table->add_columns({ key => 'genes',   title => 'Reported gene(s)',  align => 'left', sort => 'html' });
-    
-    if (!$is_somatic) {
-      $table->add_columns(
-        { key => 'allele',  title => 'Associated allele', align => 'left', sort => 'string', help => 'Most associated risk allele' },
-      );
-    }
-
-    if ($column_flags->{'stats'}) {
-      $table->add_columns({ key => 'stats',  title => 'Statistics', align => 'left', sort => 'none' });
-    }
-
-    $table->add_columns({ key => 'locations', align => 'left', title => 'Genomic Locations' });
-
+    $self->add_table_columns($table, $column_flags);
     $table->add_rows(@$_) for values %$table_rows;
     $html .= sprintf qq{<h3>Significant association(s)</h3>};
     $html .= $table->render;
@@ -94,9 +68,48 @@ sub content {
   return $html;
 };
 
+# Description : Simple function to just add the columns in the table (can be overwritten in mobile plugins)
+# Arg1        : $table hash
+# Returns     : $table(hash)
+sub add_table_columns {
+  my ($self, $table, $column_flags) = @_;
+  
+  my $is_somatic = $self->object->Obj->is_somatic;
+  my $study      = ($is_somatic && $self->object->Obj->source =~ /COSMIC/i) ? 'Tumour site' : 'Study';
+  
+  $table->add_columns(
+    { key => 'disease', title => 'Phenotype, disease and trait', align => 'left', sort => 'html' },
+    { key => 'source',  title => 'Source(s)',               align => 'left', sort => 'html' },
+  );
+  if ($column_flags->{'s_evidence'}) {
+    $table->add_columns({ key => 's_evidence', title => 'Supporting evidence(s)', align => 'left', sort => 'html' });
+  }
+  
+  $table->add_columns({ key => 'study', title => $study, align => 'left', sort => 'html' });
+
+  if ($column_flags->{'clin_sign'}) {
+    $table->add_columns({ key => 'clin_sign', title => 'Clinical significance', align => 'left', sort => 'html' });
+  }
+    
+  $table->add_columns({ key => 'genes',   title => 'Reported gene(s)',  align => 'left', sort => 'html' });
+  
+  if (!$is_somatic) {
+    $table->add_columns(
+      { key => 'allele',  title => 'Associated allele', align => 'left', sort => 'string', help => 'Most associated risk allele' },
+    );
+  }
+
+  if ($column_flags->{'stats'}) {
+    $table->add_columns({ key => 'stats',  title => 'Statistics', align => 'left', sort => 'none' });
+  }
+
+  $table->add_columns({ key => 'locations', align => 'left', title => 'Genomic Locations' });
+  
+  return $table;
+}
 
 sub table_data { 
-  my ($self, $external_data) = @_;
+  my ($self, $external_data, $has_freq) = @_;
   
   my $hub        = $self->hub;
   my $object     = $self->object;
@@ -111,11 +124,12 @@ sub table_data {
                          '&VISIBLEPANEL=resultspanel' : '';
                  
   my %clin_review_status = (
-                            'not classified by submitter'       => 0,
-                            'classified by single submitter'    => 1,
-                            'classified by multiple submitters' => 2,
-                            'reviewed by expert panel'          => 3,
-                            'reviewed by professional society'  => 4
+                            'not classified by submitter' => 0,
+                            'no assertion'                => 0,
+                            'single submitter'            => 1,
+                            'multiple submitters'         => 2,
+                            'reviewed by expert panel'    => 3,
+                            'practice guideline'          => 4
                            );
 
   my $inner_table_open  = qq{<table style="border-spacing:0px"><tr><td style="padding:1px 2px"><b>};
@@ -144,7 +158,7 @@ sub table_data {
     }
     
     my $id                 = $pf->{'_phenotype_id'};
-    my $source_name        = $pf->source;
+    my $source_name        = $pf->source_name;
     my $study_name         = $pf->study ? $pf->study->name : '';
     my $disease_url        = $hub->url({ type => 'Phenotype', action => 'Locations', ph => $id, name => $disorder }); 
     my $external_id        = ($pf->external_id) ? $pf->external_id : $study_name;
@@ -161,22 +175,34 @@ sub table_data {
       foreach my $clin_sign_term (split(',',$clin_sign_list)) {
         my $clin_sign_icon = $clin_sign_term;
         $clin_sign_icon =~ s/ /-/g;
-        $clin_sign .= qq{<img class="_ht" style="margin-right:5px;vertical-align:top" src="/i/val/clinsig_$clin_sign_icon.png" title="$clin_sign_term" />};
+        if ($attributes->{$review_status}) {;
+           $clin_sign .= qq{<img class="clin_sign" src="/i/val/clinsig_$clin_sign_icon.png" />};
+        }
+        else {
+          $clin_sign .= qq{<img class="_ht clin_sign" src="/i/val/clinsig_$clin_sign_icon.png" title="$clin_sign_term" />};
+        }
       }
 
       # ClinVar review stars
       if ($attributes->{$review_status}) {
         my $clin_status = $attributes->{$review_status};
-        my $count_stars = $clin_review_status{$clin_status};
-        my $stars = qq{<span class="_ht nowrap" style="margin-left:2px;vertical-align:top" title="$clin_sign_list -  Review status: '$clin_status'">(};
+        my $count_stars = 0;
+        foreach my $status (keys(%clin_review_status)) {
+          if ($clin_status =~ /$status/g) {
+            $count_stars = $clin_review_status{$status};
+            last;
+          }
+        }
+        my $stars = "";
         for (my $i=1; $i<5; $i++) {
           my $star_color = ($i <= $count_stars) ? 'gold' : 'grey';
-          $stars .= qq{<img style="vertical-align:top" src="/i/val/$star_color\_star.png" alt="$star_color"/>};
+           $stars .= qq{<img class="review_status" src="/i/val/$star_color\_star.png" alt="$star_color"/>};
         }
-        $stars .= qq{)</span>};
-        $clin_sign .= $stars;
+        $clin_sign_list =~ s/,/, /g;
+        $clin_sign  = qq{<div class="_ht nowrap clin_sign">$clin_sign$stars};
+        $clin_sign .= $self->helptip(qq{<b>$clin_sign_list</b><br />Review status: "$clin_status"});
+        $clin_sign .= qq{</div>};
       }
-
       $column_flags{'clin_sign'} = 1;
     }
     
@@ -229,7 +255,7 @@ sub table_data {
     my @stats;
     foreach my $attr (@stats_col) {
       if ($attributes->{$attr}) {
-        my $attr_label = ($attr eq 'beta_coef') ? 'beta_coefficient' : $attr;
+        my $attr_label = ($attr eq 'beta_coef') ? 'beta_coefficient' : (($attr eq 'p_value') ? 'p-value' : $attr);
         push @stats, "$attr_label:".$attributes->{$attr};
         $column_flags{'stats'} = 1;
       }
@@ -242,6 +268,29 @@ sub table_data {
     else {
       $stats_values = '-';
     }
+
+    if ($allele && $has_freq == 1) {
+      my $var = $hub->param('v');
+
+      my $url = $hub->url({
+        type    => 'Variation',
+        action  => 'Explore',
+        v       => $var
+      });
+
+      my $zmenu_url = $hub->url({
+        type        => 'ZMenu',
+        action      => 'PopulationFrequency',
+        factorytype => 'Variation',
+        vf          => $hub->param('vf'),
+        v           => $var,
+        allele      => $allele,
+        vdb         => 'variation'
+      });
+
+      $allele = $self->zmenu_link($url, $zmenu_url, $allele);
+    }
+
 
     my $row = {
       disease   => $disease,
@@ -269,7 +318,6 @@ sub table_data {
 
   return \%rows,\%column_flags;
 }
-
 
 sub gene_links {
   my ($self, $data) = @_;
@@ -374,9 +422,10 @@ sub source_link {
 sub external_reference_link {
   my ($self, $study, $allele) = @_;
   my $link;
-  if($study =~ /pubmed/) {
+  if($study =~ /(pubmed|PMID)/) {
     my $study_id = $study;
        $study_id =~ s/pubmed\///;
+       $study_id =~ s/PMID://;
     $link = $self->hub->species_defs->ENSEMBL_EXTERNAL_URLS->{'EPMC_MED'};
     $link =~ s/###ID###/$study_id/;
     $study =~ s/\//:/g;
@@ -466,5 +515,46 @@ sub variation_link {
   }
   return $html;
 }
+
+
+sub check_frequencies {
+  my ($self, $freq_data) = @_;
+
+  # Get the main priority group level
+  foreach my $pop_id (keys %$freq_data) {
+    my $priority_level = $freq_data->{$pop_id}{'pop_info'}{'GroupPriority'};
+    next if (!defined($priority_level));
+    next if (scalar(keys(%{$freq_data->{$pop_id}{'pop_info'}{'Sub-Population'}})) == 0);
+
+    foreach my $ssid (keys %{$freq_data->{$pop_id}{'ssid'}}) {
+      next if $freq_data->{$pop_id}{$ssid}{'failed_desc'};
+
+      my @allele_freq = @{$freq_data->{$pop_id}{'ssid'}{$ssid}{'AlleleFrequency'}};
+
+      foreach my $gt (@{$freq_data->{$pop_id}{'ssid'}{$ssid}{'Alleles'}}) {
+        next unless $gt =~ /(\w|\-)+/;
+
+        my $freq = shift @allele_freq;
+
+        return 1 if defined($freq);
+      }
+    }
+  }
+  return 0;
+}
+
+sub helptip {
+  ## Returns a dotted underlined element with given text and hover helptip
+  ## @param Tip html
+  my ($self, $tip_html) = @_;
+  return $tip_html ? sprintf('<span class="_ht_tip hidden">%s</span>', encode_entities($tip_html)) : '';
+}
+
+sub zmenu_link {
+  my ($self, $url, $zmenu_url, $html) = @_;
+
+  return sprintf('<a class="_zmenu" href="%s" title="Click to display population allele frequencies">%s</a><a class="hidden _zmenu_link" href="%s"></a>', $url, $html, $zmenu_url);
+}
+
 
 1;

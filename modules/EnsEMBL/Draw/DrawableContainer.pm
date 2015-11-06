@@ -373,6 +373,9 @@ sub new {
               absolutex => 1,
               absolutewidth => 1,
               href => $url,
+              hover => 1,
+              alt => $texts[$i],
+              class => "hoverzmenu",
             }));
             $sec_off += $leading;
           }
@@ -499,7 +502,7 @@ sub timer_push {
 ## render does clever drawing things
 
 sub render {
-  my ($self, $type, $boxes) = @_;
+  my ($self, $type, $extra) = @_;
   
   ## build the name/type of render object we want
   my $renderer_type = qq(EnsEMBL::Draw::Renderer::$type);
@@ -509,7 +512,7 @@ sub render {
     $self->{'config'},
     $self->{'__extra_block_spacing__'},
     $self->{'glyphsets'},
-    $boxes
+    $extra
   );
   my $canvas = $renderer->canvas();
   $self->timer_push("DrawableContainer->render ending $type",1);

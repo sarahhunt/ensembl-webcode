@@ -464,11 +464,11 @@ sub _summarise_variation_db {
      elsif ($type eq 'DEFAULT'){ push (@default, $name); }
      elsif ($type eq 'LD'){ push (@ld, $name); } 
    }
-   $self->db_details($db_name)->{'tables'}{'individual.reference_strain'} = $reference;
+   $self->db_details($db_name)->{'tables'}{'sample.reference_strain'} = $reference;
    $self->db_details($db_name)->{'REFERENCE_STRAIN'} = $reference; 
-   $self->db_details($db_name)->{'meta_info'}{'individual.default_strain'} = \@default;
+   $self->db_details($db_name)->{'meta_info'}{'sample.default_strain'} = \@default;
    $self->db_details($db_name)->{'DEFAULT_STRAINS'} = \@default;  
-   $self->db_details($db_name)->{'meta_info'}{'individual.display_strain'} = \@display;
+   $self->db_details($db_name)->{'meta_info'}{'sample.display_strain'} = \@display;
    $self->db_details($db_name)->{'DISPLAY_STRAINS'} = \@display; 
    $self->db_details($db_name)->{'LD_POPULATIONS'} = \@ld;
 #---------- Add in strains contained in read_coverage_collection table
@@ -829,7 +829,8 @@ sub _summarise_funcgen_db {
   foreach my $row (@$rs_aref ){
     my ($regbuild_name, $regbuild_string) = @$row; 
     $regbuild_name =~s/regbuild\.//;
-    my @key_info = split(/\./,$regbuild_name); 
+    $regbuild_name =~ /^(.*)\.(.*?)$/;
+    my @key_info = ($1,$2);
     my %data;  
     my @ids = split(/\,/,$regbuild_string);
     my $sth = $dbh->prepare(
@@ -1178,7 +1179,7 @@ sub _summarise_compara_db {
 
   ###################################################################
   ## Section for storing the genome_db_ids <=> species_name
-  $res_aref = $dbh->selectall_arrayref('SELECT genome_db_id, name, assembly FROM genome_db WHERE assembly_default = 1');
+  $res_aref = $dbh->selectall_arrayref('SELECT genome_db_id, name, assembly FROM genome_db');
   
   foreach my $row (@$res_aref) {
     my ($genome_db_id, $species_name) = @$row;
@@ -1743,14 +1744,15 @@ sub _munge_file_formats {
     'gff'       => {'ext' => 'gff', 'label' => 'GFF',       'display' => 'feature'},
     'gtf'       => {'ext' => 'gtf', 'label' => 'GTF',       'display' => 'feature'},
     'psl'       => {'ext' => 'psl', 'label' => 'PSL',       'display' => 'feature'},
+    'vcf'       => {'ext' => 'vcf', 'label' => 'VCF',       'display' => 'graph'},
     'vep_input' => {'ext' => 'txt', 'label' => 'VEP',       'display' => 'feature'},
     'wig'       => {'ext' => 'wig', 'label' => 'WIG',       'display' => 'graph'},
-    'bam'       => {'ext' => 'bam', 'label' => 'BAM',       'display' => 'graph', 'indexed' => 1},
-    'bigwig'    => {'ext' => 'bw',  'label' => 'BigWig',    'display' => 'graph', 'indexed' => 1},
-    'bigbed'    => {'ext' => 'bb',  'label' => 'BigBed',    'display' => 'graph', 'indexed' => 1},
-    'datahub'   => {'ext' => 'txt', 'label' => 'TrackHub',  'display' => 'graph', 'indexed' => 1},
-    'vcf'       => {'ext' => 'vcf', 'label' => 'VCF',       'display' => 'graph'},
-    'vcfi'      => {'ext' => 'vcf', 'label' => 'VCF (indexed)', 'display' => 'graph', 'indexed' => 1},
+    ## Remote only - cannot be uploaded
+    'bam'       => {'ext' => 'bam', 'label' => 'BAM',       'display' => 'graph', 'remote' => 1},
+    'bigwig'    => {'ext' => 'bw',  'label' => 'BigWig',    'display' => 'graph', 'remote' => 1},
+    'bigbed'    => {'ext' => 'bb',  'label' => 'BigBed',    'display' => 'graph', 'remote' => 1},
+    'trackhub'  => {'ext' => 'txt', 'label' => 'Track Hub', 'display' => 'graph', 'remote' => 1},
+    ## Export only
     'fasta'     => {'ext' => 'fa',   'label' => 'FASTA'},
     'clustalw'  => {'ext' => 'aln',  'label' => 'CLUSTALW'},
     'msf'       => {'ext' => 'msf',  'label' => 'MSF'},
@@ -1778,7 +1780,7 @@ sub _munge_file_formats {
       delete $formats{$format};
       next;
     }
-    if ($details->{'indexed'}) {
+    if ($details->{'remote'}) {
       push @remote, $format;
     }
     elsif ($details->{'display'}) {

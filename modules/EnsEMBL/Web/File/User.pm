@@ -20,6 +20,7 @@ package EnsEMBL::Web::File::User;
 
 use strict;
 
+use EnsEMBL::Web::IOWrapper;
 use Archive::Tar;
 
 use parent qw(EnsEMBL::Web::File);
@@ -98,31 +99,31 @@ sub upload {
   $self->{'absolute'} = 1;
 
   my ($method)  = $args{'method'} || grep $hub->param($_), qw(file url text);
+  my $path      = $self->read_location || $hub->param($method);
   my $type      = $args{'type'};
 
-  my @orig_path = split '/', $hub->param($method);
+  ## Need the filename (for handling zipped files)
+  my @orig_path = split '/', $path;
   my $filename  = $orig_path[-1];
-  my $name      = $hub->param('name');
+  my $name      = $args{'name'} || $hub->param('name');
   my $f_param   = $hub->param('format');
   my ($error, $format, $full_ext);
 
-  ## Need the filename (for handling zipped files)
+  ## Give the track a default name
   unless ($name) {
     if ($method eq 'text') {
-      $args{'name'} = 'Data';
+      $name = 'Data';
     } else {
-      my @orig_path = split('/', $hub->param($method));
-      $args{'name'} = $orig_path[-1];
+      $name = $filename;
     }
   }
+  $args{'name'} = $name;
 
   ## Some uploads shouldn't be viewable as tracks, e.g. assembly converter input
   my $no_attach = $type eq 'no_attach' ? 1 : 0;
 
   ## Has the user specified a format?
-  if ($f_param) {
-    $format = $f_param;
-  } 
+  $format = $f_param || $args{'format'};
 
   ## Get the compression algorithm, based on the file extension
   ## and, if necessary, try to guess the format from the extension
@@ -140,6 +141,8 @@ sub upload {
       $extension = $last;
     }
     $args{'extension'} = $extension;
+    ## Always check compression for file-based data, because users make mistakes!
+    $args{'check_compression'} = 1;
 
     ## This block is unlikely to be called, as the interface _should_ pass a format
     if (!$format) {
@@ -150,12 +153,15 @@ sub upload {
       }
     }
   }
- 
-  $args{'timestamp_name'}  = 1;
 
+  $args{'format'}         = $format; 
+  $args{'timestamp_name'} = 1;
+
+  my $url;
   if ($method eq 'url') {
-    $args{'file'}          = $hub->param($method);
-    $args{'upload'}        = 'url';
+    $url            = $self->read_location || $hub->param('url');
+    $args{'file'}   = $url;
+    $args{'upload'} = 'url';
   }
   elsif ($method eq 'text') {
     ## Get content straight from CGI, since there's no input file
@@ -182,26 +188,39 @@ sub upload {
     my $response = $self->write($result->{'content'});
 
     if ($response->{'success'}) {
-      my $session = $hub->session;
-      my $md5     = $self->md5($result->{'content'});
-      my $code    = join '_', $md5, $session->session_id;
-      my $format  = $hub->param('format');
-      $format     = 'BED' if $format =~ /bedgraph/i;
-      my %inputs  = map $_->[1] ? @$_ : (), map [ $_, $hub->param($_) ], qw(filetype ftype style assembly nonpositional assembly);
 
-      $inputs{'format'}    = $format if $format;
-      my $species = $hub->param('species') || $hub->species;
+      ## Now validate it using the appropriate parser - 
+      ## note that we have to do this after upload, otherwise we can't validate pasted data
+      my $iow = EnsEMBL::Web::IOWrapper::open($self, 'hub' => $hub);
+      $error = $iow->validate if $iow;
 
-      ## Attach data species to session
-      ## N.B. Use 'write' locations, since uploads are read from the
-      ## system's CGI directory
-      my $data = $session->add_data(
+      if ($error) {
+        ## If something went wrong, delete the upload
+        my $deletion = $self->delete;
+        warn '!!! ERROR DELETING UPLOAD: '.$deletion->{'error'}[0] if $deletion->{'error'};
+      }
+      else {
+        my $session = $hub->session;
+        my $md5     = $self->md5($result->{'content'});
+        my $code    = join '_', $md5, $session->session_id;
+        my $format  = $self->get_format || $hub->param('format');
+        $format     = 'BED' if $format =~ /bedgraph/i;
+        my %inputs  = map $_->[1] ? @$_ : (), map [ $_, $hub->param($_) ], qw(filetype ftype style assembly nonpositional assembly);
+
+        $inputs{'format'}    = $format if $format;
+        my $species = $hub->param('species') || $hub->species;
+
+        ## Attach data species to session
+        ## N.B. Use 'write' locations, since uploads are read from the
+        ## system's CGI directory
+        my $data = $session->add_data(
                                     type      => 'upload',
                                     file      => $self->write_location,
+                                    url       => $url || '',
                                     filesize  => length($result->{'content'}),
                                     code      => $code,
                                     md5       => $md5,
-                                    name      => $name,
+                                    name      => $args{'name'},
                                     species   => $species,
                                     format    => $format,
                                     no_attach => $no_attach,
@@ -210,9 +229,10 @@ sub upload {
                                     %inputs
                                     );
 
-      $session->configure_user_data('upload', $data);
-      ## Store the session code so we can access it later
-      $self->{'code'} = $code;
+        $session->configure_user_data('upload', $data);
+        ## Store the session code so we can access it later
+        $self->{'code'} = $code;
+      }
     }
     else {
       $error = $response->{'error'}[0];
@@ -250,5 +270,34 @@ sub write_tarball {
   return $result;
 }
 
+sub build_tracks_from_file {
+### Parse a file and convert data into drawable objects
+  my $self = shift;
+  my $tracks = {};
+
+  my $class = 'EnsEMBL::Web::IOWrapper::'.uc($self->format);
+  if (EnsEMBL::Root::dynamic_use($class)) {
+    my $wrapper = $class->new($self);
+    my $parser = $wrapper->parser;
+    while ($parser->next) {
+      my $key = $parser->get_metadata_value('name') || 'default';
+      if ($parser->is_metadata) {
+        $tracks->{$key}{'config'}{'description'} = $parser->get_metadata_value('description') unless $tracks->{$key}{'config'}{'description'};
+      }
+      else {
+        my $feature_array = $tracks->{$key}{'features'} || [];
+
+        ## Create feature
+        my $feature = $wrapper->get_hash;
+        next unless keys %$feature;
+
+        ## Add to track hash
+        push @$feature_array, $feature;
+        $tracks->{$key}{'features'} = $feature_array unless $tracks->{$key}{'features'};
+      }
+    }
+  }
+  return $tracks;
+}
 1;
 

@@ -24,7 +24,7 @@ use PDF::API2;
 
 use base qw(EnsEMBL::Draw::Renderer);
 
-1;
+use List::Util qw(max);
 
 sub init_canvas {
   my ($self, $config, $im_width, $im_height) = @_;
@@ -39,7 +39,7 @@ sub init_canvas {
   $self->canvas(
     { 'im_height' => $im_height, 'page' => $page, 'pdf' => $pdf, 'g' => $page->gfx, 't'=>$page->text, 'font' => $pdf->corefont('Helvetica-Bold',1) }
   );
-  $self->{'canvas'}{'g'}->linewidth(0.25);
+  $self->{'canvas'}{'g'}->linewidth(0.5);
 }
 
 sub add_canvas_frame {
@@ -65,12 +65,23 @@ sub W { my( $self, $glyph ) = @_; return 1 + $glyph->pixelwidth()* $self->{sf}; 
 
 sub strokecolor { my $self = shift; $self->{'canvas'}{'g'}->strokecolor( $self->{'colourmap'}->hex_by_name( shift ) ); }
 sub fillcolor   { my $self = shift; $self->{'canvas'}{'g'}->fillcolor(   $self->{'colourmap'}->hex_by_name( shift ) ); }
-sub stroke    { my $self = shift; $self->{'canvas'}{'g'}->stroke; }
-sub fill    { my $self = shift; $self->{'canvas'}{'g'}->fill; }
-sub rect    { my $self = shift; $self->{'canvas'}{'g'}->rect(@_); }
-sub move    { my $self = shift; $self->{'canvas'}{'g'}->move(@_); }
-sub line    { my $self = shift; $self->{'canvas'}{'g'}->line(@_); }
-sub hybrid    { my $self = shift; $self->{'canvas'}{'page'}->hybrid; }
+sub stroke      { my $self = shift; $self->_fillstroke_alpha('stroke', @_); }
+sub fill        { my $self = shift; $self->_fillstroke_alpha('fill', @_); }
+sub rect        { my $self = shift; $self->{'canvas'}{'g'}->rect(@_); }
+sub move        { my $self = shift; $self->{'canvas'}{'g'}->move(@_); }
+sub line        { my $self = shift; $self->{'canvas'}{'g'}->line(@_); }
+sub hybrid      { my $self = shift; $self->{'canvas'}{'page'}->hybrid; }
+
+sub _fillstroke_alpha {
+  my ($self, $action, $alpha) = @_;
+
+  my $pdf = $self->{'canvas'}{'pdf'};
+  my $gfx = $self->{'canvas'}{'g'};
+
+  $gfx->egstate($self->{'_egstate'}{$alpha} ||= $pdf->egstate()->transparency($alpha)) if $alpha; # apply transparency
+  $gfx->$action;
+  $gfx->egstate($self->{'_egstate'}{0} ||= $pdf->egstate()->transparency(0)) if $alpha; # reset transparency
+}
 
 sub render_Rect {
   my ($self, $glyph) = @_;
@@ -80,19 +91,23 @@ sub render_Rect {
 	my($x,$y) = $self->XY($glyph->pixelx,$glyph->pixely);
 	my($a,$b) = $self->XY($glyph->pixelx+$glyph->pixelwidth,$glyph->pixely+$glyph->pixelheight);
 
+  ## Fix invisible glyphs!
+  if ($a - $x < 1) { $a += 1; }
+  if ($b - $y < 1) { $b += 1; }
+
   if(defined $gcolour) {
     unless( $gcolour eq 'transparent' ) {
-    $self->fillcolor( $gcolour );
-    $self->strokecolor( $gcolour );
-    $self->rect($x,$y,$a-$x,$b-$y);
-    # $self->stroke();
-    $self->fill();
+      $self->fillcolor( $gcolour );
+      $self->strokecolor( $gcolour );
+      $self->rect($x,$y,$a-$x,$b-$y);
+      # $self->stroke();
+      $self->fill($glyph->{'alpha'});
     }
   } elsif(defined $gbordercolour) {
     unless( $gbordercolour eq 'transparent' ) {
-    $self->strokecolor( $gbordercolour );
-    $self->rect($x,$y,$a-$x,$b-$y);
-    $self->stroke();
+      $self->strokecolor( $gbordercolour );
+      $self->rect($x,$y,$a-$x,$b-$y);
+      $self->stroke($glyph->{'alpha'});
     }
   }
 }
@@ -118,7 +133,7 @@ sub render_Barcode {
   if($glyph->{'wiggle'} eq 'bar') {
     my $mul = ($y2-$y1) / $max;
     foreach my $p (@$points) {
-      my $yb = $y1 + $p * $mul;
+      my $yb = $y1 + max($p,0) * $mul;
       $self->strokecolor($colours[0]);
       $self->fillcolor($colours[0]);
       $self->rect($x1,$top-$y2,$x2-$x1,$yb-$y1,$colours[0]);
@@ -128,7 +143,7 @@ sub render_Barcode {
     }
   } else {
     foreach my $p (@$points) {
-      my $colour = $colours[int($p * scalar @colours / $max)] || 'black';
+      my $colour = $colours[int(max($p,0) * scalar @colours / $max)] || 'black';
       $self->fillcolor($colour);
       $self->strokecolor($colour);
       $self->rect($x1,$top-$y1,$x2-$x1,$y2-$y1);

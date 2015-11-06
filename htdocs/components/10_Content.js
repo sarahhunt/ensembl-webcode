@@ -23,15 +23,16 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
     var fnEls = {
       ajaxLoad:         $('.ajax', this.el),
       hideHints:        $('.hint', this.el),
-      glossary:         $('.glossary_mouseover', this.el),
       helpTips:         $('._ht', this.el),
+      zMenuLink:        $('._zmenu', this.el),
       wrapping:         $('table.cellwrap_inside, table.heightwrap_inside', this.el),
       selectToToggle:   $('._stt', this.el),
       selectAll:        $('input._selectall', this.el),
       filterable:       $('._fd', this.el),
       speciesDropdown:  $('._sdd', this.el),
       toggleButtons:    $('.tool_buttons a.togglebutton', this.el),
-      dataTable:        $('table.data_table', this.el)
+      dataTable:        $('table.data_table', this.el),
+      newTable:         $('.new_table', this.el)
     };
     
     if (this.el.hasClass('ajax')) {
@@ -41,6 +42,7 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
     $.extend(this.elLk, fnEls);
 
     this.toggleable();  
+    $(this).afterimage();
 
     for (var fn in fnEls) {
       if (fnEls[fn].length) {
@@ -64,7 +66,8 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
         return false;
       });
     }
-    
+
+    this.el.externalLinks();
   },
   
   ajaxLoad: function () {
@@ -224,6 +227,11 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
         }
       } else {
         panel.toggleContent($(this), duration);
+        if (panel.elLk[this.rel] && $(this).hasClass('closed')) {
+          if (panel.elLk[this.rel][0].id) {
+            window.location.hash = panel.elLk[this.rel][0].id;
+          }
+        }
       }
       
       Ensembl.EventManager.trigger('toggleContent', this.rel, duration); // this toggles any other toggle switches used to toggle the same html block
@@ -248,9 +256,10 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
   },
   
   toggleContent: function (el, duration) {
-    var rel     = el.attr('rel');
-    var toggle  = duration ? 'slideToggle' : 'toggle';
-    
+    var rel       = el.attr('rel');
+    var toggle    = duration ? 'slideToggle' : 'toggle';
+    var link_html = el.html();
+ 
     if (!rel) {
       el.toggleClass('open closed').siblings('.toggleable')[toggle](duration);
     } else {
@@ -265,7 +274,13 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
           el.siblings('.toggleable')[toggle](duration);
         }
       }
-      
+
+      if (link_html.match(/Show/) && el.hasClass("toggle_link")) {
+        el.html("Hide");
+      } else if (link_html.match(/Hide/) && el.hasClass("toggle_link")) {
+        el.html("Show");
+      }
+            
       if (el.hasClass('set_cookie')) {
         Ensembl.cookie.set('toggle_' + rel, el.hasClass('open') ? 'closed' : 'open');
       }
@@ -304,14 +319,7 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
       }).prependTo(this.firstChild).helptip({ content: 'Hide this panel' });
     });
   },
-  
-  glossary: function () {
-    this.elLk.glossary.each(function() {
-      var el  = $(this);
-      el.helptip({ content: el.children('.floating_popup').remove().html() });
-    });
-  },
-  
+
   dataTable: function () {
     $.extend(this, Ensembl.DataTable);
     this.dataTableInit();
@@ -320,7 +328,11 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
   helpTips: function () {
     this.elLk.helpTips.helptip();
   },
-  
+
+  zMenuLink: function () {
+    this.elLk.zMenuLink.zMenuLink();
+  },
+
   wrapping: function () {
     this.elLk.wrapping.togglewrap();
   },
@@ -345,5 +357,9 @@ Ensembl.Panel.Content = Ensembl.Panel.extend({
 
   toggleButtons: function() {
     this.elLk.toggleButtons.toggleButtons();
+  },
+
+  newTable: function() {
+    this.elLk.newTable.newTable();
   }
 });

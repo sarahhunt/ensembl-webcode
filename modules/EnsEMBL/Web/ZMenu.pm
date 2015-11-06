@@ -22,6 +22,8 @@ use strict;
 
 use HTML::Entities qw(encode_entities decode_entities);
 
+use Bio::EnsEMBL::Variation::Utils::Constants;
+
 use base qw(EnsEMBL::Web::Root);
 
 sub new {
@@ -187,6 +189,26 @@ sub delete_entry_by_type {
   }
 }
 
+sub helptip {
+  ## Returns a dotted underlined element with given text and hover helptip
+  ## @param Display html
+  ## @param Tip html
+  my ($self, $display_html, $tip_html) = @_;
+  return $tip_html ? sprintf('<span class="ht _ht"><span class="_ht_tip hidden">%s</span>%s</span>', encode_entities($tip_html), $display_html) : $display_html;
+}
+
+sub glossary_helptip {
+  ## Creates a dotted underlined element that has a mouseover glossary helptip (helptip text fetched from glossary table of help db)
+  ## @param Display html
+  ## @param Entry to match the glossary key to fetch help tip html (if not provided, use the display html as glossary key)
+  my ($self, $display_html, $entry) = @_;
+
+  $entry  ||= $display_html;
+  $entry    = $self->hub->glossary_lookup->{$entry} // '';
+
+  return $self->helptip($display_html, $entry);
+}
+
 # Build and print the JSON response
 sub render {
   my $self          = shift;
@@ -233,6 +255,21 @@ sub render {
   }
   
   print $self->jsonify({'header' => $self->header, 'features' => \@features});
+}
+
+sub variant_consequence_label {
+  my ($self, $consequence_type) = @_;
+
+  $consequence_type = lc $consequence_type;
+  my ($consequence) = grep { lc $_->SO_term eq $consequence_type } values %Bio::EnsEMBL::Variation::Utils::Constants::OVERLAP_CONSEQUENCES;
+  my $var_styles    = $self->{'_var_styles'}  || $self->hub->species_defs->colour('variation');
+  my $colourmap     = $self->{'_colourmap'}   || $self->hub->colourmap;
+
+  return sprintf('<nobr><span class="colour" style="background-color:%s">&nbsp;</span>&nbsp;<span class="_ht ht" title="%s">%s</span></nobr>',
+    $var_styles->{$consequence_type} ? $colourmap->hex_by_name($var_styles->{$consequence_type}->{'default'}) : $colourmap->hex_by_name($var_styles->{'default'}->{'default'}),
+    $consequence->description,
+    $consequence->label
+  );
 }
 
 1;

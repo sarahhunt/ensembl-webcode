@@ -51,7 +51,6 @@ use EnsEMBL::Web::SpeciesDefs;
 use EnsEMBL::Web::Text::FeatureParser;
 use EnsEMBL::Web::File::User;
 use EnsEMBL::Web::ViewConfig;
-use EnsEMBL::Web::Tools::Misc qw(get_url_content);
 
 use base qw(EnsEMBL::Web::Root);
 
@@ -110,9 +109,10 @@ sub new {
   $self->{'_input'}       = $input;
   $self->{'_factorytype'} = $factorytype;
   $self->{'_controller'}  = $controller;
-  $self->{'_session'}     = EnsEMBL::Web::Session->new($self, $cookies->{'session_cookie'});
 
   $species_defs->{'timer'} = $self->timer;
+
+  $self->init_session($cookies->{'session_cookie'});
 
   $self->set_core_params;
 
@@ -121,7 +121,11 @@ sub new {
 
 sub factorytype { $_[0]{'_factorytype'}; }
 
+sub init_session {
+  my ($self, $cookie) = @_;
 
+  $self->{'_session'} = EnsEMBL::Web::Session->new($self, $cookie);
+}
 
 # Accessor functionality
 sub species     :lvalue { $_[0]{'_species'};     }
@@ -198,7 +202,7 @@ sub get_cookie_value {
 sub get_cookie {
   my ($self, $name, $is_encrypted) = @_;
   my $cookies = $self->cookies;
-  $cookies->{$name} = EnsEMBL::Web::Cookie->retrieve($self->apache_handle, {'name' => $name, 'encrypted' => $is_encrypted}) if $cookies->{$name} && $cookies->{$name}->encrypted eq !$is_encrypted;
+  $cookies->{$name} = EnsEMBL::Web::Cookie->retrieve($self->apache_handle, {'name' => $name, 'encrypted' => $is_encrypted}) unless $cookies->{$name} && $cookies->{$name}->encrypted eq ($is_encrypted || 0);
   return $cookies->{$name};
 }
 
@@ -468,6 +472,7 @@ sub url {
   delete $pars{'t'}  if $params->{'pt'};
   delete $pars{'pt'} if $params->{'t'};
   delete $pars{'t'}  if $params->{'g'} && $params->{'g'} ne $pars{'g'};
+  delete $pars{'v'}  if $params->{'vf'};
   delete $pars{'time'};
   delete $pars{'expand'};
 
@@ -641,6 +646,22 @@ sub get_ext_seq {
   return { 'error' => 'No entries found' } if !@sequences;
 
   return wantarray ? @sequences : $sequences[0];
+}
+
+sub glossary_lookup {
+  ## Get the glossary lookup hash
+  ## @return Hashref with merged keys from TEXT_LOOKUP and ENSEMBL_GLOSSARY
+  my $self = shift;
+
+  if (!$self->{'_glossary_lookup'}) {
+    my %glossary  = $self->species_defs->multiX('ENSEMBL_GLOSSARY');
+    my %lookup    = $self->species_defs->multiX('TEXT_LOOKUP');
+
+    $self->{'_glossary_lookup'}{$_} = $glossary{$_} for keys %glossary;
+    $self->{'_glossary_lookup'}{$_} = $lookup{$_}   for keys %lookup;
+  }
+
+  return $self->{'_glossary_lookup'};
 }
 
 # This method gets all configured DAS sources for the current species.
@@ -848,6 +869,42 @@ sub is_new_regulation_pipeline { # Regulation rewrote their pipeline
   }
   $self->{'is_new_pipeline'}{$species} = $new;
   return $new;
+}
+
+sub _source_url {
+  my ($url,$type,$params) = @_;
+
+  my @x = split(/###/,$url,-1);
+  my @y;
+  while(@x) {
+    push @y,(shift @x);
+    next unless @x;
+    local $_ = shift @x;
+    if(s/^(.*)=(.*)$/$1/) {
+      my $pred = $2;
+      return undef if $params->{$_} !~ /$pred/;
+    }
+    push @y,$params->{$_};
+  }
+  return join('',@y);
+}
+
+sub source_url {
+  my ($self,$type,$params) = @_;
+
+  my $urls = $self->species_defs->ENSEMBL_EXTERNAL_URLS->{uc $type};
+  return undef unless $urls;
+  $urls = [$urls] unless ref($urls) eq 'ARRAY';
+  foreach my $url (@$urls) {
+    my $ret = _source_url($url,$type,$params);
+    return $ret if $ret;
+  }
+  return undef;
+}
+
+sub ie_version {
+  return 0 unless $ENV{'HTTP_USER_AGENT'} =~ /MSIE (\d+)/;
+  return $1;
 }
 
 1;

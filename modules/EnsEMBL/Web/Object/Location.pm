@@ -1064,11 +1064,9 @@ sub fetch_homologues_of_gene_in_species {
   my $ha = $self->database('compara')->get_HomologyAdaptor;
   my @homologues;
   
-  foreach my $homology (@{$ha->fetch_all_by_Member_paired_species($qy_member, $paired_species, ['ENSEMBL_ORTHOLOGUES'])}){
-    foreach my $member (@{$homology->get_all_GeneMembers}) {
-      next if $member->stable_id eq $qy_member->stable_id;
-      push @homologues, $member;  
-    }
+  foreach my $homology (@{$ha->fetch_all_by_Member($qy_member, -TARGET_SPECIES => [$paired_species])}) {
+    # The target member is guaranteed to be in second position in the array
+    push @homologues, $homology->get_all_Members()->[1]->gene_member();
   }
   
   return \@homologues;
@@ -1112,18 +1110,11 @@ sub get_synteny_matches {
 
     if (@$homologues) {
       foreach my $homol (@$homologues) {
-        my $gene       = $gene2_adaptor->fetch_by_stable_id($homol->stable_id, 1);
+        my $gene       = $gene2_adaptor->fetch_by_stable_id($homol->stable_id);
         my $homol_id   = $gene->external_name || $gene->stable_id;
         my $gene_slice = $gene->slice;
         my $h_start    = $gene->start;
-        my $h_chr;
-        
-        if ($gene_slice->coord_system->name eq 'chromosome') {
-          $h_chr = $gene_slice->seq_region_name;
-        } else {
-          my $coords = $gene_slice->project('chromosome');
-          $h_chr = $coords->[0]->[2]->seq_region_name if @$coords;
-        }
+       
         push @data, {
           'sp_stable_id'    => $localgene->stable_id,
           'sp_synonym'      => $gene_synonym,
@@ -1133,7 +1124,7 @@ sub get_synteny_matches {
           'sp_length'       => $self->bp_to_nearest_unit($localgene->start + $offset),
           'other_stable_id' => $homol->stable_id,
           'other_synonym'   => $homol_id,
-          'other_chr'       => $h_chr,
+          'other_chr'       => $gene_slice->seq_region_name,
           'other_start'     => $h_start,
           'other_end'       => $gene->end,
           'other_length'    => $self->bp_to_nearest_unit($gene->end - $h_start),
@@ -1540,40 +1531,40 @@ sub get_ld_values {
   return \%ld_values;
 }
 
-#------ Individual stuff ------------------------------------------------
+#------ Sample stuff ------------------------------------------------
 
-sub individual_genotypes {
+sub sample_genotypes {
 
-  ### individual_table_calls
+  ### sample_table_calls
   ### Arg1: variation feature object
-  ### Example    : my $ind_genotypes = $object->individual_table;
-  ### Description: gets Individual Genotype data for this variation
+  ### Example    : my $sample_genotypes = $object->sample_table;
+  ### Description: gets Sample Genotype data for this variation
   ### Returns hashref with all the data
 
   my ($self, $vf, $slice_genotypes) = @_;
   if (! defined $slice_genotypes->{$vf->seq_region_name.'-'.$vf->seq_region_start}){
       return {};
   }
-  my $individual_genotypes = $slice_genotypes->{$vf->seq_region_name.'-'.$vf->seq_region_start};
-  return {} unless @$individual_genotypes; 
+  my $sample_genotypes = $slice_genotypes->{$vf->seq_region_name.'-'.$vf->seq_region_start};
+  return {} unless @$sample_genotypes; 
   my %data = ();
   my %genotypes = ();
 
   my %gender = qw (Unknown 0 Male 1 Female 2 );
-  foreach my $ind_gt_obj ( @$individual_genotypes ) { 
-    my $ind_obj   = $ind_gt_obj->individual;
-    next unless $ind_obj;
+  foreach my $sample_gt_obj ( @$sample_genotypes ) { 
+    my $sample_obj = $sample_gt_obj->sample;
+    next unless $sample_obj;
 
     # data{name}{AA}
     #we should only consider 1 base genotypes (from compressed table)
-    next if ( CORE::length($ind_gt_obj->allele1) > 1 || CORE::length($ind_gt_obj->allele2)>1);
-    foreach ($ind_gt_obj->allele1, $ind_gt_obj->allele2) {
+    next if ( CORE::length($sample_gt_obj->allele1) > 1 || CORE::length($sample_gt_obj->allele2)>1);
+    foreach ($sample_gt_obj->allele1, $sample_gt_obj->allele2) {
       my $allele = $_ =~ /A|C|G|T|N/ ? $_ : "N";
-      $genotypes{ $ind_obj->name }.= $allele;
+      $genotypes{ $sample_obj->name }.= $allele;
     }
-    $data{ $ind_obj->name }{gender}   = $gender{$ind_obj->gender} || 0;
-    $data{ $ind_obj->name }{mother}   = $self->parent($ind_obj, "mother");
-    $data{ $ind_obj->name }{father}   = $self->parent($ind_obj, "father");
+    $data{ $sample_obj->name }{gender} = $gender{$sample_obj->individual->gender} || 0;
+    $data{ $sample_obj->name }{mother} = $self->parent($sample_obj->individual, "mother");
+    $data{ $sample_obj->name }{father} = $self->parent($sample_obj->individual, "father");
   }
   return \%genotypes, \%data;
 }
@@ -1601,8 +1592,8 @@ sub get_all_genotypes{
 
   my $slice = $self->slice_cache;
   my $variation_db = $self->database('variation')->get_db_adaptor('variation');
-  my $iga = $variation_db->get_IndividualGenotypeAdaptor;
-  my $genotypes = $iga->fetch_all_by_Slice($slice);
+  my $sga = $variation_db->get_SampleGenotypeAdaptor;
+  my $genotypes = $sga->fetch_all_by_Slice($slice);
   #will return genotypes as a hash, having the region_name-start as key for rapid acces
   my $genotypes_hash = {};
   foreach my $genotype (@{$genotypes}){

@@ -58,7 +58,7 @@ sub availability {
       
       $availability->{'variation'} = 1;
       
-      $availability->{"has_$_"}  = $counts->{$_} for qw(transcripts populations individuals ega citation);
+      $availability->{"has_$_"}  = $counts->{$_} for qw(transcripts regfeats features populations samples ega citation locations);
       if($self->param('vf')){
           ## only show these if a mapping available
           $availability->{"has_$_"}  = $counts->{$_} for qw(alignments ldpops);
@@ -90,12 +90,15 @@ sub counts {
   unless ($counts) {
     $counts = {};
     $counts->{'transcripts'} = $self->count_transcripts;
+    $counts->{'regfeats'}    = $self->count_regfeats;
+    $counts->{'features'}    = $counts->{'transcripts'} + $counts->{'regfeats'};
     $counts->{'populations'} = $self->count_populations;
-    $counts->{'individuals'} = $self->count_individuals;
+    $counts->{'samples'}     = $self->count_samples;
     $counts->{'ega'}         = $self->count_ega;
     $counts->{'ldpops'}      = $self->count_ldpops;
     $counts->{'alignments'}  = $self->count_alignments->{'multi'};
     $counts->{'citation'}    = $self->count_citations;
+    $counts->{'locations'}   = scalar @{$self->get_variation_features};
 
     $MEMD->set($key, $counts, undef, 'COUNTS') if $MEMD;
     $self->{'_counts'} = $counts;
@@ -119,6 +122,12 @@ sub count_ega {
   my $counts = scalar @ega_links || 0;
   return $counts;
 }
+
+sub count_features {
+  my $self = shift;
+  return $self->count_transcripts + $self->count_regfeats;
+}
+
 sub count_transcripts {
   my $self = shift;
   my %mappings = %{ $self->variation_feature_mapping };
@@ -129,19 +138,30 @@ sub count_transcripts {
     my @transcript_variation_data = @{ $mappings{$varif_id}{transcript_vari} };
     $counts = scalar @transcript_variation_data;
   }
-  
-  $counts += scalar map {@{$_->get_all_RegulatoryFeatureVariations}, @{$_->get_all_MotifFeatureVariations}} @{$self->get_variation_features};
 
+  return $counts;
+}
+
+sub count_regfeats {
+  my $self = shift;
+  my $counts = 0;
+  # a MotifFeature is necessarily contained in a RegulatoryFeature so we don't need the count explicitly?
+  # $counts += scalar map {@{$_->get_all_RegulatoryFeatureVariations}, @{$_->get_all_MotifFeatureVariations}} @{$self->get_variation_features};
+  $counts += scalar map {@{$_->get_all_RegulatoryFeatureVariations}} @{$self->get_variation_features};
   return $counts;
 }
 
 sub count_populations {
   my $self = shift;
-  my $counts = scalar(keys %{$self->freqs}) || 0;
+  my $counts = 0;
+  my $freqs = $self->freqs;
+  foreach my $pop_id (keys %{$freqs}) {
+    $counts += scalar(keys %{$freqs->{$pop_id}{ssid}});
+  }
   return $counts;
 }
 
-sub count_individuals {
+sub count_samples {
   my $self = shift;
   my $dbh  = $self->database('variation')->get_VariationAdaptor->dbc->db_handle;
   my $var  = $self->Obj;
@@ -149,7 +169,7 @@ sub count_individuals {
   # somatic variations don't have genotypes currently
   return 0 if $var->has_somatic_source;
   
-  my $gts = $var->get_all_IndividualGenotypes();
+  my $gts = $var->get_all_SampleGenotypes();
   
   return defined($gts) ? scalar @$gts : 0;
 }
@@ -178,7 +198,7 @@ sub count_citations{
 sub short_caption {
   my $self = shift;
   
-  my $type = $self->Obj->is_somatic ? 'Somatic mutation' : 'Variation';
+  my $type = $self->Obj->is_somatic ? 'Somatic mutation' : 'Variant';
   my $short_type = $self->Obj->is_somatic ? 'S. mut' : 'Var';
   return $type.' displays' unless shift eq 'global';   
   
@@ -691,6 +711,71 @@ sub freqs {
   return \%data;
 }
 
+sub format_group_population_freqs {
+  my ($self, $only_super_populations) = @_;
+  my $hub = $self->hub;
+  my $pop_freq;
+  my $main_priority_level;
+
+  my $freq_data = $self->freqs();
+
+  # Get the main priority group level
+  foreach my $pop_id (keys %$freq_data) {
+    my $priority_level = $freq_data->{$pop_id}{'pop_info'}{'GroupPriority'};
+    next if (!defined($priority_level));
+
+    $main_priority_level = $priority_level if (!defined($main_priority_level) || $main_priority_level > $priority_level);
+  }
+  return undef if (!defined($main_priority_level));
+
+  foreach my $pop_id (keys %$freq_data) {
+    ## is it a priority project ?
+    my $priority_level = $freq_data->{$pop_id}{'pop_info'}{'GroupPriority'};
+    next if (!defined($priority_level) || $priority_level!=$main_priority_level);
+
+    my $pop_name = $freq_data->{$pop_id}{'pop_info'}{'Name'};
+
+    if ($only_super_populations && scalar(keys(%{$freq_data->{$pop_id}{'pop_info'}{'Sub-Population'}})) == 0) {
+      next;
+    }
+    elsif (!$only_super_populations && scalar(keys(%{$freq_data->{$pop_id}{'pop_info'}{'Sub-Population'}})) != 0) {
+      $pop_freq->{$pop_name}{'sub_pop'} = $freq_data->{$pop_id}{'pop_info'}{'Sub-Population'};
+    }
+
+    my @composed_name = split(':', $pop_name);
+    $pop_freq->{$pop_name}{'label'} = $composed_name[$#composed_name];
+    $pop_freq->{$pop_name}{'desc'}  = $freq_data->{$pop_id}{'pop_info'}{'Description'};
+    $pop_freq->{$pop_name}{'group'} = $freq_data->{$pop_id}{'pop_info'}{'PopGroup'};
+
+    foreach my $ssid (keys %{$freq_data->{$pop_id}{'ssid'}}) {
+      next if $freq_data->{$pop_id}{$ssid}{'failed_desc'};
+
+      my @allele_freq = @{$freq_data->{$pop_id}{'ssid'}{$ssid}{'AlleleFrequency'}};
+
+      foreach my $gt (@{$freq_data->{$pop_id}{'ssid'}{$ssid}{'Alleles'}}) {
+        next unless $gt =~ /(\w|\-)+/;
+
+        my $freq = $self->format_freqs_number(shift @allele_freq);
+
+        $pop_freq->{$pop_name}{'freq'}{$ssid}{$gt} = $freq if $freq ne 'unknown';
+      }
+    }
+  }
+  return $pop_freq;
+}
+
+sub format_freqs_number {
+  ### Population_genotype_alleles
+  ### Arg1 : null or a number
+  ### Returns "unknown" if null or formats the number to 3 decimal places
+
+  my ($self, $number) = @_;
+
+  return 'unknown' if (!defined $number);
+  return ($number < 0.01) ? sprintf '%.3f', $number : sprintf '%.2f', $number;
+}
+
+
 sub calculate_allele_freqs_from_genotype {
   my ($self, $variation_feature, $temp_data) = @_;
   my %data = %$temp_data;
@@ -945,85 +1030,76 @@ sub pop_display_group_name{
  
 
 
-# Individual table -----------------------------------------------------
+# Sample table -----------------------------------------------------
 
-sub individual_table {
+sub sample_table {
 
-  ### individual_table_calls
-  ### Example    : my $ind_genotypes = $object->individual_table;
-  ### Description: gets Individual Genotype data for this variation
+  ### sample_table_calls
+  ### Example    : my $sample_genotypes = $object->sample_table;
+  ### Description: gets Sample Genotype data for this variation
   ### Returns hashref with all the data
 
   my $self = shift;
   my $selected_pop = shift;
-  my $individual_genotypes = $self->individual_genotypes_obj($selected_pop);
-  return {} unless defined $individual_genotypes && @$individual_genotypes; 
+  my $sample_genotypes = $self->sample_genotypes_obj($selected_pop);
+  return {} unless defined $sample_genotypes && @$sample_genotypes; 
 
   ### limit populations shown to those with population genotypes 
   ### summarised by dbSNP or added in adaptor for 1KG
   my $pop_geno_adaptor   = $self->hub->database('variation')->get_PopulationGenotypeAdaptor();
   my $pop_genos = $pop_geno_adaptor->fetch_all_by_Variation($self->vari);
 
-  my %ip_hash_new;
   my %synonym;
   my %pop_seen;
   my %pop_data;
-
-  foreach my $pop_geno (@{$pop_genos}){
-      my $pop_obj = $pop_geno->population();
-      my $pop_id  = $pop_obj->dbID();   
-
-      ## look up samples in each population once
-      next if $pop_seen{ $pop_id} ==1;
-      $pop_seen{ $pop_id} =1;
-
-      my $individuals = $pop_obj->get_all_Individuals(); 
-      foreach my $ind_ob (@{$individuals}){
-          ## link on name & apply to geno structure later
-          push @{$ip_hash_new{$ind_ob->name()}}, $pop_id;
-      }
-
-      ## look up synonyms (for dbSNP link) once
-      $synonym{$pop_obj->name} = $pop_obj->get_all_synonyms(),
-
-      # Add population information
-      $pop_data{$pop_id} = {
-         Name => $pop_obj->name(),
-         Size => $pop_obj->size(),
-         Link => $synonym{$pop_obj->name},
-         ID   => $pop_obj->dbID(),
-         Priority => $pop_obj->display_group_priority(),
-         Group    => $pop_obj->display_group_name()
-      };
-  }
-  
   my %data;
   
-  foreach my $ind_gt_obj ( @$individual_genotypes ) { 
-    my $ind_obj   = $ind_gt_obj->individual;
-    next unless $ind_obj;
-    next if $ind_obj->name() =~/1000GENOMES:pilot_2/; ## not currently reporting these
-
-    my $ind_id    = $ind_obj->dbID;
+  foreach my $sample_gt_obj ( @$sample_genotypes ) { 
+    my $sample_obj = $sample_gt_obj->sample;
+    my $ind_obj   = $sample_obj->individual;
     
-    $data{$ind_id}{Name}           = $ind_obj->name;
-    $data{$ind_id}{Genotypes}      = $self->individual_genotype($ind_gt_obj);
-    $data{$ind_id}{Gender}         = $ind_obj->gender;
-    $data{$ind_id}{Description}    = $self->individual_description($ind_obj);
-    $data{$ind_id}{Mother}        = $self->parent($ind_obj,"mother");
-    $data{$ind_id}{Father}        = $self->parent($ind_obj,"father");
-    $data{$ind_id}{Children}      = $self->child($ind_obj);
-    $data{$ind_id}{Object}        = $ind_obj;
+    next unless $ind_obj;
+    next unless $sample_obj;
+    next if $sample_obj->name() =~/1000GENOMES:pilot_2/; ## not currently reporting these
+
+    my $sample_id    = $sample_obj->dbID;
+    $data{$sample_id}{Name}        = $sample_obj->name;
+    $data{$sample_id}{Genotypes}   = $self->sample_genotype($sample_gt_obj);
+    $data{$sample_id}{Gender}      = $ind_obj->gender;
+    $data{$sample_id}{Description} = $self->description($sample_obj);
+    $data{$sample_id}{Mother}      = $self->parent($ind_obj,"mother");
+    $data{$sample_id}{Father}      = $self->parent($ind_obj,"father");
+    $data{$sample_id}{Children}    = $self->child($ind_obj);
+    $data{$sample_id}{Object}      = $sample_obj;
   
-    if(defined $ip_hash_new{$ind_obj->name()}->[0]){
-      foreach my $pop_id (@{$ip_hash_new{$ind_obj->name()}}){
-        push (@{$data{$ind_id}{Population}}, $pop_data{$pop_id});
+    my $pop_objs = $sample_obj->get_all_Populations();
+
+    foreach my $pop_obj (@{$pop_objs}) {
+      my $pop_id  = $pop_obj->dbID();
+
+      ## look up samples in each population once
+      if (!$pop_seen{$pop_id}) {
+
+        ## look up synonyms (for dbSNP link) once
+        $synonym{$pop_obj->name} = $pop_obj->get_all_synonyms(),
+
+        # Add population information
+        $pop_data{$pop_id} = {
+          Name => $pop_obj->name(),
+          Size => $pop_obj->size(),
+          Link => $synonym{$pop_obj->name},
+          ID   => $pop_obj->dbID(),
+          Priority => $pop_obj->display_group_priority(),
+          Group    => $pop_obj->display_group_name()
+        };
+        $pop_seen{$pop_id} = 1;
       }
+      push (@{$data{$sample_id}{Population}}, $pop_data{$pop_id}); 
     }
-    else{
-      ## force the rest to the 'Other individuals' table to be reported seperately
-      push (@{$data{$ind_id}{Population}}, {
-        Name => $ind_obj->name(),
+
+    if (scalar @{$pop_objs} == 0) {
+      push (@{$data{$sample_id}{Population}}, {
+        Name => $sample_obj->name(),
         Size => 1,
         Link => [],
         ID   => 1000000
@@ -1036,60 +1112,60 @@ sub individual_table {
 
 
 
-sub individual_genotypes_obj {
+sub sample_genotypes_obj {
 
-  ### Individual_genotype_table_calls
-  ### Example    : my $ind_genotypes = $object->individual_genotypes;
-  ### Description: gets IndividualGenotypes for this Variation
-  ### Returns listref of IndividualGenotypes
+  ### Sample_genotype_table_calls
+  ### Example    : my $sample_genotypes = $object->sample_genotypes;
+  ### Description: gets SampleGenotypes for this Variation
+  ### Returns listref of SampleGenotypes
 
   my $self = shift;
   my $selected_pop = shift;
-  my $individuals;
+  my $samples;
   eval {
-    $individuals = $self->vari->get_all_IndividualGenotypes($selected_pop);
+    $samples = $self->vari->get_all_SampleGenotypes($selected_pop);
   };
   if ($@) {
-    warn "\n\n************ERROR************:  Bio::EnsEMBL::Variation::Variation::get_all_IndividualGenotypes fails. $@";
+    warn "\n\n************ERROR************:  Bio::EnsEMBL::Variation::Variation::get_all_SampleGenotypes fails. $@";
   }
-  return $individuals;
+  return $samples;
 }
 
 
 
-sub individual_genotype {
+sub sample_genotype {
 
-  ### Individual_genotype_table_calls
-  ### Args      : Bio::EnsEMBL::Variation::IndividualGenotype object
-  ### Example    : $genotype_freq = $object->individual_genotypes($individual);
-  ### Description: gets the Individual genotypes
+  ### Sample_genotype_table_calls
+  ### Args      : Bio::EnsEMBL::Variation::SampleGenotype object
+  ### Example    : $genotype_freq = $object->sample_genotypes($sample);
+  ### Description: gets the Sample genotypes
   ### Returns String
 
-  my ($self, $individual)  = @_;
-  return $individual->genotype_string;
+  my ($self, $sample)  = @_;
+  return $sample->genotype_string;
 
 }
 
 
-sub individual_description {
+sub description {
 
-  ### Individual_genotype_table_calls
-  ### Args      : Bio::EnsEMBL::Variation::Individual object
-  ### Example    : $genotype_freq = $object->individual_description($individual);
-  ### Description: gets the Individual description
+  ### Sample_genotype_table_calls
+  ### Args       : Bio::EnsEMBL::Variation::Sample object
+  ### Example    : $description = $object->sample_description($sample);
+  ### Description: gets the Sample description
   ### Returns String
 
-  my ($self, $individual_obj)  = @_;
-  return $individual_obj->description;
+  my ($self, $obj)  = @_;
+  return $obj->description;
 }
 
 
 
 sub parent {
 
-  ### Individual_genotype_table_calls
+  ### Sample_genotype_table_calls
   ### Args1      : Bio::EnsEMBL::Variation::Individual object
-  ### Arg2      : string  "mother" "father"
+  ### Arg2       : string  "mother" "father"
   ### Example    : $mother = $object->parent($individual, "mother");
   ### Description: gets any related individuals
   ### Returns Bio::EnsEMBL::Variation::Individual
@@ -1100,16 +1176,16 @@ sub parent {
   return {} unless $parent;
 
   # Gender is obvious, not calling their parents
-  return  { Name        => $parent->name,
-      ### Description=> $self->individual_description($ind_obj),
-    };
+  return  { Name => $parent->name,
+    ### Description=> $self->individual_description($ind_obj),
+  };
 }
 
 
 sub child {
 
-  ### Individual_genotype_table_calls
-  ### Args      : Bio::EnsEMBL::Variation::Individual object
+  ### Sample_genotype_table_calls
+  ### Args       : Bio::EnsEMBL::Variation::Individual object
   ### Example    : %children = %{ $object->extra_individual($individual)};
   ### Description: gets any related individuals
   ### Returns Bio::EnsEMBL::Variation::Individual
@@ -1120,27 +1196,30 @@ sub child {
   foreach my $individual ( @{ $individual_obj->get_all_child_Individuals} ) {
     my $gender = $individual->gender;
     $children{$individual->name} = [$gender, 
-           $self->individual_description($individual)];
+           $self->description($individual)];
   }
   return \%children;
 }
 
 
-sub get_individuals_pops {
+sub get_samples_pops {
 
-  ### Individual_genotype_table_calls
-  ### Args      : Bio::EnsEMBL::Variation::Individual object
-  ### Example    : $pops =  $object->get_individuals_pop($individual)};
-  ### Description: gets any individual''s populations
+  ### Sample_genotype_table_calls
+  ### Args       : Bio::EnsEMBL::Variation::Sample object
+  ### Example    : $pops =  $object->get_samples_pop($sample)};
+  ### Description: gets any sample''s populations
   ### Returns Bio::EnsEMBL::Variation::Population
 
-  my ($self, $individual) = @_;
-  my @populations = @{$individual->get_all_Populations};
+  my ($self, $sample) = @_;
+  my @populations = @{$sample->get_all_Populations};
   my @pop_string;
 
   foreach (@populations) {
-    push (@pop_string,  {Name => $self->pop_name($_), 
-       Link => $self->pop_links($_), ID => $_->dbID});
+    push (@pop_string,  {
+      Name => $self->pop_name($_), 
+      Link => $self->pop_links($_),
+      ID => $_->dbID
+    });
   }
   return \@pop_string;
 }
@@ -1387,7 +1466,7 @@ sub ld_pops_for_snp {
   my $self = shift; 
   my @vari_mappings = @{ $self->unique_variation_feature }; 
   return [] unless @vari_mappings;                    # must have mapping
-  return [] unless $self->counts->{'individuals'};    # must have genotypes
+  return [] unless $self->counts->{'samples'};    # must have genotypes
   return [] unless $self->vari_class =~ /snp/i;  # must be a SNP or mixed
 
   my $pa = $self->Obj->adaptor->db->get_PopulationAdaptor;
@@ -1535,8 +1614,7 @@ sub hgvs {
       foreach my $type ('hgvs_genomic', 'hgvs_transcript', 'hgvs_protein') {
         my $h = $tv->{$type};
         
-        next unless $h && $h !~ m/\(p\.=\)/;
-        next if $type eq 'hgvs_genomic' && $seen_genomic{$h}++;
+        next if !$h || $type eq 'hgvs_genomic' && $seen_genomic{$h}++;
         
         push @{$hgvs{$allele}}, $h;
       }

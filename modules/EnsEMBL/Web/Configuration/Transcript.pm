@@ -68,7 +68,7 @@ sub populate_tree {
   
   $seq_menu->append($self->create_node('Sequence_Protein', 'Protein',
     [qw( sequence EnsEMBL::Web::Component::Transcript::ProteinSeq )],
-    { 'availability' => 'either', 'concise' => 'Protein sequence' }
+    { 'availability' => 'translation', 'concise' => 'Protein sequence' }
   ));
   
   my $record_menu = $self->create_submenu('ExternalRecords', 'External References');
@@ -89,7 +89,12 @@ sub populate_tree {
     [qw( arrays EnsEMBL::Web::Component::Transcript::OligoArrays )],
     { 'availability' => 'transcript database:funcgen has_oligos', 'concise' => 'Oligo probes' }
   ));
-  
+ 
+  $self->create_node('Ontology/Table', 'Ontology',
+    [qw( go EnsEMBL::Web::Component::Transcript::Go )],
+    { 'availability' => 'transcript has_go', 'concise' => 'GO table' }
+  );
+=pod 
   my $go_menu = $self->create_submenu('GO', 'Ontology');
   $go_menu->append($self->create_node('Ontology/Image', 'GO graph',
     [qw( go EnsEMBL::Web::Component::Transcript::Goimage )],
@@ -100,10 +105,11 @@ sub populate_tree {
     [qw( go EnsEMBL::Web::Component::Transcript::Go )],
     { 'availability' => 'transcript has_go', 'concise' => 'GO table' }
   ));
+=cut
 
   my $var_menu = $self->create_submenu('Variation', 'Genetic Variation');
 
-  $var_menu->append($self->create_node('Variation_Transcript/Table', 'Variation table',
+  $var_menu->append($self->create_node('Variation_Transcript/Table', 'Variant table',
     [qw( variationtable EnsEMBL::Web::Component::Transcript::VariationTable )],
     { 'availability' => 'transcript database:variation core' }
   ));
@@ -131,7 +137,7 @@ sub populate_tree {
       image      EnsEMBL::Web::Component::Transcript::TranslationImage
       statistics EnsEMBL::Web::Component::Transcript::PepStats
     )],
-    { 'availability' => 'either translation', 'concise' => 'Protein summary' }
+    { 'availability' => 'translation not_pred', 'concise' => 'Protein summary' }
   ));
   
   my $D = $self->create_node('Domains', 'Domains & features',
@@ -146,9 +152,9 @@ sub populate_tree {
   
   $prot_menu->append($D);
   
-  $prot_menu->append($self->create_node('ProtVariations', 'Variations',
+  $prot_menu->append($self->create_node('ProtVariations', 'Variants',
     [qw( protvars EnsEMBL::Web::Component::Transcript::ProteinVariations )],
-    { 'availability' => 'either database:variation has_variations', 'concise' => 'Variations' }
+    { 'availability' => 'either database:variation has_variations', 'concise' => 'Variants' }
   ));
   
   # External Data tree, including non-positional DAS sources

@@ -15,15 +15,15 @@
 #!/usr/local/bin/perl
 
 =pod
- Wrapper script for selenium tests. 
- Takes one argument (release number) plus three JSON configuration files:
- - configure Selenium environment
- - select which tests are run in a particular batch
- - configure species to test (optional)
+  Wrapper script for selenium tests. 
+  Takes one argument (release number) plus three JSON configuration files:
+  - configure Selenium environment
+  - select which tests are run in a particular batch
+  - configure species to test (optional - defaults to release_<VERSION>_species.conf)
 
- The purpose of the latter file is to remove dependency on the web code.
- Instead, a helper script is used to dump some useful parts of the
- web configuration, which should then be eyeballed to ensure it looks OK.
+  The purpose of the latter file is to remove dependency on the web code.
+  Instead, a helper script dump_species_to_json.pl is used to dump some useful parts
+  of the web configuration, which should then be eyeballed to ensure it looks OK.
 
   Note: Configuration files must be placed in utils/selenium/conf, but they can be
   in any plugin that is configured in Plugins.pm
@@ -74,6 +74,10 @@ GetOptions(
 );
 
 die 'Please provide configuration files!' unless ($config && $tests);
+
+if (!$species) {
+  $species = sprintf('release_%s_species.conf', $release);
+}
 
 ## Find config files
 my ($config_path, $tests_path, $species_path) = find_configs($SERVERROOT);
@@ -127,33 +131,31 @@ unless (defined($verbose)) {
                 : 0;
 }
 
-## Create Selenium object
-my $selenium;
+my $ua;
 
 unless ($DEBUG) {
   ## Check to see if the selenium server is online 
-  my $ua = LWP::UserAgent->new(keep_alive => 5, env_proxy => 1);
+  $ua = LWP::UserAgent->new(keep_alive => 5, env_proxy => 1);
   $ua->timeout(10);
   my $response = $ua->get("http://$host:$port/selenium-server/driver/?cmd=testComplete");
   if ($response->content ne 'OK') { 
     die "Selenium Server is offline or host configuration is wrong !!!!\n";
   }
-  $selenium = EnsEMBL::Selenium->new(
-                                     _ua         => $ua,
-                                     host        => $host,
-                                     port        => $port,
-                                     browser     => $browser,
-                                     browser_url => $CONF->{'url'},
-                                    ); 
 }
 
 ## Basic config for test modules
 my $test_config = {
-                    sel     => $selenium,
-                    url     => $url,
-                    timeout => $timeout,
-                    verbose => $verbose,  
-                    conf    => {'release' => $release},
+                    url         => $url,
+                    timeout     => $timeout,
+                    verbose     => $verbose,  
+                    conf        => {'release' => $release},
+                    sel_config  => { 
+                                      ua          => $ua,
+                                      host        => $host,
+                                      port        => $port,
+                                      browser     => $browser,
+                                      browser_url => $CONF->{'url'},
+                                    },
                   };
 
 
@@ -226,13 +228,13 @@ close($pass_log);
 close($fail_log);
 
 my $total = $pass + $fail;
-my $plural = $total > 1 ? 's' : '';
+my $plural = $total == 1 ? '' : 's';
 
 print "\n==========================\n";
 print "TEST RUN COMPLETED!\n";
 print "Ran $total test$plural:\n";
-print "- $pass succeeded\n";
-print "- $fail failed\n";
+print " - $pass succeeded\n";
+print " - $fail failed\n";
 
 if ($tests_path =~ /debug/) {
   print "\n\nIgnore this next message - it simply means that no real selenium tests 
@@ -281,6 +283,10 @@ sub run_test {
     ## (e.g. if it's a Variation test and species has no variation)
     write_to_log($object, $error, $module);
   }
+  elsif (!$object || ref($object) !~ /Test/) {
+    write_to_log('fail', "Could not instantiate object from package $package"); 
+    return;
+  }
   else {
     ## Check that site being tested is up
     my @response = $object->check_website;
@@ -303,8 +309,8 @@ sub run_test {
           if (ref($_) eq 'ARRAY') {
             if ($config->{'verbose'} || $_->[0] ne 'pass') { 
               write_to_log(@$_);
-              $_->[0] eq 'pass' ? $pass++ : $fail++;
             }
+            $_->[0] eq 'pass' ? $pass++ : $fail++;
           }
           elsif ($_) {
             $pass++;
@@ -332,8 +338,8 @@ sub write_to_log {
   
   my $line = uc($code);
   $line    .= " in $module" if $module;
-  $line    .= "::$method" if $method;
-  $line    .= "- $message $timestamp\n";
+  $line    .= " ::$method" if $method;
+  $line    .= " - $message $timestamp\n";
 
   my $log = $code eq 'pass' ? $pass_log : $fail_log;
 

@@ -34,6 +34,7 @@ sub content {
   my $self          = shift;
   my $hub           = $self->hub;
   my $object        = $self->object;
+  my $gene          = $object->gene;
   my $species_defs  = $hub->species_defs;
   my $table         = $self->new_twocol;
   my $site_type     = $species_defs->ENSEMBL_SITETYPE;
@@ -41,10 +42,16 @@ sub content {
   my @Uniprot       = @{$object->Obj->get_all_DBLinks('Uniprot/SWISSPROT')};
   my $db            = $object->get_db;
   my $alt_genes     = $self->_matches('alternative_genes', 'Alternative Genes', 'ALT_GENE', 'show_version'); #gets all xrefs, sorts them and stores them on the object. Returns HTML only for ALT_GENES
-  my @RefSeqMatches = @{$object->gene->get_all_Attributes('refseq_compare')};
-  my $display_link  = $self->get_gene_display_link;
+  my @RefSeqMatches = @{$gene->get_all_Attributes('refseq_compare')};
+  my $display_xref  = $gene->display_xref;
+  my ($link_url)    = $display_xref ? $self->get_gene_display_link($gene, $display_xref) : ();
 
-  $table->add_row('Name', qq|<p>$display_link->{'link'} ($display_link->{'dbname'})</p>|) if $display_link;
+  if ($display_xref) {
+    $table->add_row('Name', $link_url
+      ? sprintf('<p><a href="%s" class="constant">%s</a> (%s)</p>', $link_url, $display_xref->display_id, $display_xref->db_display_name)
+      : sprintf('<p>%s (%s)</p>', $display_xref->display_id, $display_xref->db_display_name)
+    );
+  }
 
   # add CCDS info
   if (scalar @CCDS) {
@@ -84,7 +91,9 @@ sub content {
     my $lrg_link;
     for my $i(0..$#lrg_matches) {
       my $lrg = $lrg_matches[$i];
-      my $link = $hub->get_ExtURL_link($lrg->display_id, 'ENS_LRG_gene', $lrg->display_id);
+
+      my $lrg_url = $hub->url({ type => 'LRG', action => 'Summary', lrg => $lrg->display_id });
+      my $link = sprintf(qq{<a href="%s">%s</a>}, $lrg_url, $lrg->display_id);
 
       if($i == 0) { # first one
         $lrg_link .= $link;
@@ -101,7 +110,7 @@ sub content {
       $lrg_link." provide".
       (@lrg_matches > 1 ? "" : "s").
       " a stable genomic reference framework ".
-      "for describing sequence variations for this gene";
+      "for describing sequence variants for this gene";
 
     $lrg_html .= $lrg_link;
   }
@@ -157,14 +166,21 @@ sub content {
           my @old_ids;
           my $predecessors = $object->get_predecessors();
           foreach my $pred (@$predecessors) {
-            if ($pred->release eq $alt_release) {
+            if ($pred->release <= $alt_release) {
               push @old_ids, $pred->stable_id();
             }
           }
 
-          if (@old_ids) {
+          ## Dedupe IDs
+          my (%seen, @ok_ids);
+          foreach (@old_ids) {
+            push @ok_ids, $_ unless $seen{$_};
+            $seen{$_} = 1;
+          }
+
+          if (@ok_ids) {
             $txt .= qq(<p>View this locus in the $alt_assembly archive: );
-            foreach my $id (@old_ids) {
+            foreach my $id (@ok_ids) {
               $txt .= sprintf(qq(<a href="%s" rel="external">%s</a> ),
                           $url.$hub->species_path."/Gene/Summary?g=".$id,$id);
             }
@@ -177,7 +193,7 @@ sub content {
       else {
         $txt .= sprintf('<p><a href="%s/%s/Search/Results?q=%s" rel="external">Search for this gene</a> on assembly %s.</p>', $url, $hub->species_path, $hub->param('g'), $alt_assembly);
       } 
-      $table->add_row("$alt_assembly assembly", $txt);
+      $table->add_row("Other assemblies", $txt);
     }
 
   # add some Vega info
@@ -207,7 +223,7 @@ sub content {
 
   eval {
     # add prediction method
-    my $label = ($db eq 'vega' || $site_type eq 'Vega' ? 'Curation' : 'Annotation') . ' Method';
+    my $label = ($db eq 'vega' || $site_type eq 'Vega' ? 'Curation' : 'Annotation') . ' method';
     my $text  = "<p>No $label defined in database</p>";
     my $o     = $object->Obj;
 

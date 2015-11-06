@@ -19,9 +19,9 @@ use Text::Wrap;
 
 $Text::Wrap::columns = 75;
 
-our $ENSEMBL_VERSION           = 80;
-our $ARCHIVE_VERSION           = 'May2015';    # Change this to the archive site for this version
-our $ENSEMBL_RELEASE_DATE      = 'May 2015';
+our $ENSEMBL_VERSION           = 82;
+our $ARCHIVE_VERSION           = 'Sep2015';    # Change this to the archive site for this version
+our $ENSEMBL_RELEASE_DATE      = 'September 2015';
 
 #### START OF VARIABLE DEFINITION #### DO NOT REMOVE OR CHANGE THIS COMMENT ####
 
@@ -162,6 +162,8 @@ our $ENSEMBL_IMAGE_WIDTH       = 800;
 our $ENSEMBL_MINIFIED_FILES_PATH = '/minified'; # path for saving the minified files
 our $ENSEMBL_DEBUG_JS            = 0; # change these to 1 to prevent js minification
 our $ENSEMBL_DEBUG_CSS           = 0; # change these to 1 to prevent css minification
+our $ENSEMBL_DEBUG_IMAGES        = 0; # change these to 1 to prevent css minification
+our $ENSEMBL_SKIP_RSS            = 0; # set to 1 in sandboxes to avoid overloading blog
 
 our $ENSEMBL_EXTERNAL_SEARCHABLE = 0; # No external bots allowed by default
 
@@ -255,6 +257,13 @@ our $SAMTOOLS_DIR         = "$ENSEMBL_SERVERROOT/samtools";
 our $BIOPERL_DIR          = "$ENSEMBL_SERVERROOT/bioperl-live";
 our $MINI_BIOPERL_161_DIR = "$ENSEMBL_SERVERROOT/mini-bioperl-161";
 
+# See Memoize.pm for meaning of these
+our $MEMOIZE_ENABLED      = 1;
+our $MEMOIZE_DEBUG        = 0;
+our $MEMOIZE_SIZE         = [14,32,4*1024*1024];
+
+our $PACED_MULTI = 6; # Max simultaneous connections
+
 ###############################################################################
 ######################### END OF LOCAL CONFIGURATION SECTION ##################
 ###############################################################################
@@ -275,22 +284,15 @@ our $ENSEMBL_SECONDARY_SPECIES;
 our %__species_aliases;
 
 ###############################################################################
-## Web user database - used to store information about settings, e.g. DAS
-## contigview and cytoview options.
+## Cookies and cookie encryption
 ###############################################################################
 
-our $ENSEMBL_USERDB_TYPE      = 'mysql';
-our $ENSEMBL_USERDB_NAME      = 'ensembl_accounts';
-our $ENSEMBL_USERDB_USER      = 'mysqluser';
-our $ENSEMBL_USERDB_HOST      = 'localhost';
-our $ENSEMBL_USERDB_PORT      =  3305;
-our $ENSEMBL_USERDB_PASS      = '';
-                             
-our $ENSEMBL_USER_COOKIE      = 'ENSEMBL_WWW_USER';
-our $ENSEMBL_USER_ID          = 0;
-our $ENSEMBL_SESSION_COOKIE   = 'ENSEMBL_WWW_SESSION';
-our $ENSEMBL_COOKIEHOST       = '';
-                             
+our $ENSEMBL_USER_COOKIE        = 'ENSEMBL_WWW_USER';
+our $ENSEMBL_USER_COOKIEHOST    = '';
+our $ENSEMBL_SESSION_COOKIE     = 'ENSEMBL_WWW_SESSION';
+our $ENSEMBL_SESSION_COOKIEHOST = '';
+our $ENSEMBL_COOKIEHOST         = '';
+
 our $ENSEMBL_ENCRYPT_0        = 0x16a3b3; # Encryption keys for session
 our $ENSEMBL_ENCRYPT_1        = 'a9';     # Encryption keys for session
 our $ENSEMBL_ENCRYPT_2        = 'xX';     # Encryption keys for session
@@ -320,6 +322,7 @@ our $OBJECT_TO_SCRIPT = {
   DataExport          => 'DataExport',
   Download            => 'Download',
   Json                => 'Json',
+  ImageExport         => 'ImageExport',
 
   Gene                => 'Page',
   Transcript          => 'Page',
@@ -405,6 +408,10 @@ sub update_conf {
   
   while (my ($dir, $name) = splice @plugins, 0, 2) {
     my $plugin_conf = "${name}::SiteDefs";
+
+    if (!-d $dir) {
+      die "[ERROR] Plugin $name could not be loaded: $dir not found.\n";
+    }
     
     eval qq{ package $plugin_conf; use ConfigDeferrer qw(defer); }; # export 'defer' to the plugin SiteDefs
     eval qq{ require '$dir/conf/SiteDefs.pm' };                     # load the actual plugin SiteDefs
@@ -557,7 +564,11 @@ sub memcached {
   $pars->{'flags'} = [ keys %flags ];
   
   $SiteDefs::ENSEMBL_MEMCACHED = $pars;
+
+  $SiteDefs::ENSEMBL_COHORT =
+    Sys::Hostname::Long::hostname_long().":".$ENSEMBL_SERVERROOT;
 }
+
 
 1;
 

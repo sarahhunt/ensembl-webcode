@@ -37,7 +37,7 @@ sub content {
   return $self->_info('Variation: ' . $object->name, '<p>No genotypes for this variation</p>') unless %$freq_data;
   
   my $table_array = $self->format_frequencies($freq_data);
-  my $html        = '<a id="IndividualGenotypesPanel_top"></a>';
+  my $html        = '<a id="SampleGenotypesPanel_top"></a>';
   
   if (scalar @$table_array == 1 && $is_somatic) {
     $html .= $table_array->[0]->[1]->render;
@@ -118,6 +118,11 @@ sub format_frequencies {
       my @composed_name = split(':', $name);
       $composed_name[$#composed_name] = '<b>'.$composed_name[$#composed_name].'</b>';
       $freq_data->{$pop_id}{'pop_info'}{'Name'} = join(':',@composed_name);
+
+      # 1KG population names
+      if ($freq_data->{$pop_id}{'pop_info'}{'PopGroup'} && $freq_data->{$pop_id}{'pop_info'}{'PopGroup'} =~ /^(1000\s*genomes|hapmap)/i ) {
+        $freq_data->{$pop_id}{'pop_info'}{'Label'} = $composed_name[$#composed_name];
+      }
     }
 
     ### loop through frequency data for this population putting it in the destination array for display purposes
@@ -193,7 +198,7 @@ sub format_table {
   my $ref_allele = ($vf_object) ? (split('/',$vf_object->allele_string))[0] : '';
 
   my $sortable = ($table_header =~ /1000 genomes/i) ? 0 : 1;
-  my $has_pop_with_ind = 0;
+  my $has_pop_with_samples = 0;
 
   my %columns;
   my @header_row;
@@ -218,7 +223,7 @@ sub format_table {
       next;
     }
 
-    my $hash  = $freq_data->{$pop_id}{'pop_info'}{'Super-Population'};
+    my $hash = $freq_data->{$pop_id}{'pop_info'}{'Super-Population'};
     my ($super) = keys %{$hash||{}};
     if ($super) {
       $tree->{$super}{'children'}{$pop_id} = $name;
@@ -249,7 +254,7 @@ sub format_table {
     my $pop_info = $freq_data->{$pop_id}{'pop_info'};
 
     my ($row_class, $group_member);
-    if ($pop_info->{'Name'} =~ /(\W+|_)ALL/) {
+    if ($pop_info->{'Name'} =~ /(\W+|_)ALL/ && $tree->{$pop_id}{'children'}) {
       $row_class = 'supergroup';
     }
     elsif ($tree->{$pop_id}{'children'}) {
@@ -282,13 +287,18 @@ sub format_table {
 
 
       ## Add the population description: this will appear when the user move the mouse on the population name
-      my $pop_name = $pop_info->{'Name'};
+      my $pop_name = ($pop_info->{'Label'}) ? $pop_info->{'Label'} : $pop_info->{'Name'}; # 1KG population names
       if (!$is_somatic && $pop_info->{'Description'}) {
-       $pop_name = qq{<span class="_ht" title="}.$self->strip_HTML($pop_info->{'Description'}).qq{">$pop_name</span>};
+        my $desc = $self->strip_HTML($pop_info->{'Description'});
+        my $ht_class = ((scalar(keys %urls_seen) > 1 || scalar(keys %pop_urls) == 1 )) ? '' : ' ht';
+        $pop_name = qq{<span class="_ht$ht_class" title="$desc">$pop_name</span>};
+      }
+      if ($pop_info->{'Label'}) { # 1KG population names
+        $pop_name .= qq{<span class="hidden export">;}.$pop_info->{'Name'}.qq{</span>};
       }
 
       ## Only link on the population name if there's more than one URL for this table
-      my $pop_url                  = (scalar(keys %urls_seen) > 1 || scalar(keys %pop_urls) == 1 ) ? sprintf('<a href="%s" rel="external">%s</a>', $pop_urls{$pop_id}, $pop_name) : $pop_name;
+      my $pop_url = (scalar(keys %urls_seen) > 1 || scalar(keys %pop_urls) == 1 ) ? sprintf('<a href="%s" rel="external">%s</a>', $pop_urls{$pop_id}, $pop_name) : $pop_name;
 
       ## Hacky indent, because overriding table CSS is a pain!
       $pop_row{'pop'}              = $group_member ? '&nbsp;&nbsp;'.$pop_url : $pop_url;
@@ -298,8 +308,8 @@ sub format_table {
       $pop_row{'Super-Population'} = $self->sort_extra_pops($pop_info->{'Super-Population'});
       $pop_row{'Sub-Population'}   = $self->sort_extra_pops($pop_info->{'Sub-Population'});
       if ($pop_info->{Size}) {
-        $pop_row{'detail'} = $self->ajax_add($self->ajax_url(undef, { function => 'IndividualGenotypes', pop => $pop_id, update_panel => 1 }), $pop_id);
-        $has_pop_with_ind  = 1;
+        $pop_row{'detail'} = $self->ajax_add($self->ajax_url(undef, { function => 'SampleGenotypes', pop => $pop_id, update_panel => 1 }), $pop_id);
+        $has_pop_with_samples  = 1;
       }
       
       push @rows, \%pop_row;
@@ -332,7 +342,7 @@ sub format_table {
     push @header_row, { key => $col, align => 'left', label => "$col: frequency (count)", sort => ($sortable) ? 'numeric' : 'none' };
   }
 
-  push @header_row, { key => 'detail', align => 'left', label => 'Genotype detail',         sort => 'none' } if ($self->object->counts->{'individuals'} && $has_pop_with_ind == 1);
+  push @header_row, { key => 'detail', align => 'left', label => 'Genotype detail',         sort => 'none' } if ($self->object->counts->{'samples'} && $has_pop_with_samples == 1);
   push @header_row, { key => 'failed', align => 'left', label => 'Comment', width => '25%', sort => ($sortable) ? 'string' : 'none' } if $columns{'failed'};
 
   my $table = $self->new_table([], [], { data_table => 1 });

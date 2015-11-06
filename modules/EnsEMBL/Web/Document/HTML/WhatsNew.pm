@@ -44,6 +44,8 @@ sub render {
   my $species_defs = $hub->species_defs;
   my $html;
 
+  return if $SiteDefs::ENSEMBL_SKIP_RSS;
+
   my ($headlines, @links, $blog);
   if ($hub->species_defs->multidb->{'DATABASE_PRODUCTION'}{'NAME'}) {
     ($headlines, @links) = $self->show_headlines;
@@ -146,6 +148,9 @@ sub _include_blog {
   if ($MEMD && $MEMD->get('::BLOG')) {
     $items = $MEMD->get('::BLOG');
   }
+  if($MEMD && $MEMD->get('::BLOG-FAILED')) {
+    return qq(<p>Sorry, no feed is available from our blog at the moment</p>);
+  }
 
   unless ($items && @$items) {
     $items = $self->get_rss_feed($hub, $rss_url, 3);
@@ -158,6 +163,10 @@ sub _include_blog {
         }
       }
       $MEMD->set('::BLOG', $items, 3600, qw(STATIC BLOG)) if $MEMD;
+    }
+    if(!@$items) { # No items, assume blog has failed
+      warn "MARKING BLOG AS FAILED\n";
+      $MEMD->set('::BLOG-FAILED',1,3600) if $MEMD; 
     }
   }
 
@@ -176,7 +185,7 @@ sub _include_blog {
     $html .= qq(<p>Sorry, no feed is available from our blog at the moment</p>);
   }
 
-  $html .= qq(<p style="text-align:right"><a href="$blog_url">Go to Ensembl blog &rarr;</a></p>);
+  $html .= qq(<p style="text-align:right"><a href="$blog_url">Go to Ensembl blog</a></p>);
 
   return $html;
 

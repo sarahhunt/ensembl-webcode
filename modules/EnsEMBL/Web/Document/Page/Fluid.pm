@@ -35,6 +35,7 @@ sub initialize_HTML {
     stylesheet EnsEMBL::Web::Document::Element::Stylesheet
     links      EnsEMBL::Web::Document::Element::Links
     meta       EnsEMBL::Web::Document::Element::Meta
+    prefetch   EnsEMBL::Web::Document::Element::Prefetch
   ));
   
   $self->add_body_elements(qw(
@@ -47,6 +48,7 @@ sub initialize_HTML {
     modal            EnsEMBL::Web::Document::Element::Modal
     copyright        EnsEMBL::Web::Document::Element::Copyright
     footerlinks      EnsEMBL::Web::Document::Element::FooterLinks
+    fatfooter        EnsEMBL::Web::Document::Element::FatFooter
     body_javascript  EnsEMBL::Web::Document::Element::BodyJavascript
   ));
 }

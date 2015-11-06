@@ -38,6 +38,8 @@ sub render {
   my $sitename       = $sd->ENSEMBL_SITETYPE;
   my $html           = ''; 
 
+  return if $SiteDefs::ENSEMBL_SKIP_RSS;
+
   my $rss_url = $sd->ENSEMBL_TIPS_RSS;
   my $tips = $cache && $cache->get('::TIPS') || {};
   
@@ -47,16 +49,24 @@ sub render {
                     );
 
   ## Check the cache, then fetch new tips
+  if($cache && $cache->get('::TIPS-FAILED')) {
+    return '';
+  }
+  my $got = 0;
   foreach my $cat (keys %categories) {
     (my $cat_url = $rss_url) =~ s/feed\/$/category\/$cat\/feed\//;
     unless (scalar(@{$tips->{$cat}||[]}) && $cat_url) {
       $tips->{$cat} = $self->get_rss_feed($hub, $cat_url);
-
       if (scalar(@{$tips->{$cat}||[]})) {
         $_->{'content'} = encode_utf8($_->{'content'}) for @{$tips->{$cat}};
       }
     }
+    $got += @{$tips->{$cat}} if $tips->{$cat};
     $cache->set('::TIPS', $tips, 3600, qw(STATIC TIPS)) if $cache;
+  }
+  if(!$got) { # No tips, probably failed
+    warn "MARKING RSS AS FAILED\n";
+    $cache->set('::TIPS-FAILED',1,3600,qw(STATIC TIPS)) if $cache;
   }
 
   $html .= '<ul class="bxslider">';

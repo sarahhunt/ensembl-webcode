@@ -32,14 +32,13 @@ use base qw(EnsEMBL::Web::Controller);
 
 sub process {
   my $self  = shift;
-  my $func  = $self->action;
+  my $hub   = $self->hub;
+  my $func  = 'ajax_'.$hub->action;
 
-  if ($func = $self->can($func)) {
-    $func->($self, $self->hub);
-  }
+  $self->$func($hub) if $self->can($func);
 }
 
-sub autocomplete {
+sub ajax_autocomplete {
   my ($self, $hub) = @_;
   my $cache   = $hub->cache;
   my $species = $hub->species;
@@ -64,7 +63,7 @@ sub autocomplete {
   print $self->jsonify($results);
 }
 
-sub track_order {
+sub ajax_track_order {
   my ($self, $hub)  = @_;
   my $image_config  = $hub->get_imageconfig($hub->param('image_config'));
   my $species       = $image_config->species;
@@ -80,7 +79,7 @@ sub track_order {
   $hub->session->store;
 }
 
-sub order_reset {
+sub ajax_order_reset {
   my ($self, $hub)  = @_;
   my $image_config  = $hub->get_imageconfig($hub->param('image_config'));
   my $species       = $image_config->species;
@@ -91,7 +90,7 @@ sub order_reset {
   $hub->session->store;
 }
 
-sub config_reset {
+sub ajax_config_reset {
   my ($self, $hub)  = @_;
   my $image_config  = $hub->get_imageconfig($hub->param('image_config'));
   my $species       = $image_config->species;
@@ -111,7 +110,7 @@ sub config_reset {
   $hub->session->store;
 }
 
-sub multi_species {
+sub ajax_multi_species {
   my ($self, $hub) = @_;
   my %species = map { $_ => $hub->param($_) } $hub->param;
   my %args    = ( type => 'multi_species', code => 'multi_species' );
@@ -128,20 +127,37 @@ sub multi_species {
   }
 }
 
-sub cell_type {
+sub ajax_cell_type {
   my ($self,$hub) = @_;
   my $cell = $hub->param('cell');
   my $image_config_name = $hub->param('image_config') || 'regulation_view';
 
   my $image_config = $hub->get_imageconfig($image_config_name);
-  my (%cell,%changed);
 
-  my $target = \%cell;
-  foreach my $key (qw(cell cell_on cell_off)) {
+  # What changed
+  my %changes;
+  my %renderers = ( 'cell_on' => 'normal', 'cell_off' => 'off' );
+  foreach my $key (keys %renderers) {
+    my $renderer = $renderers{$key};
     foreach my $cell (split(/,/,uri_unescape($hub->param($key)))) {
-      $target->{$image_config->tree->clean_id($cell)} = 1;
+      my $id = $image_config->tree->clean_id($cell);
+      $changes{$image_config->tree->clean_id($cell)} = $renderer;
     }
-    $target = \%changed;
+  }
+
+  # Which evidences have any cell-lines on at all
+  my %any_on;
+  foreach my $type (qw(reg_features seg_features reg_feats_core reg_feats_non_core)) {
+    my $menu = $image_config->get_node($type);
+    next unless $menu;
+    foreach my $node (@{$menu->child_nodes}) {
+      foreach my $node2 (@{$node->child_nodes}) {
+        my $ev = $node2->id;
+        next unless $ev =~ s/^${type}_(.*?)_//;
+        my $renderer2 = $node2->get('display');
+        $any_on{$ev} = 1 if $renderer2 ne 'off';
+      }
+    }
   }
 
   foreach my $type (qw(reg_features seg_features reg_feats_core reg_feats_non_core)) {
@@ -153,29 +169,34 @@ sub cell_type {
         $cell =~ s/^(reg_feats_|seg_)//;
       }
       next if $cell eq 'MultiCell';
-      my $renderer = $cell{$cell} ? 'normal' : 'off';
       if($image_config_name ne 'regulation_view' and
           $type eq 'seg_features') {
         next;
       }
-      next unless $changed{$cell};
-      $image_config->update_track_renderer($node->id,$renderer);
+      next unless $changes{$cell};
+      if($changes{$cell} ne 'off') { # Force non-partial
+        foreach my $node2 (@{$node->child_nodes}) {
+          my $ev = $node2->id;
+          next unless $ev =~ s/^${type}_${cell}_//;
+          my $renderer2 = $node2->get('display');
+          next if $renderer2 ne 'off' or !$any_on{$ev};
+          $image_config->update_track_renderer($node2->id,'on');
+        }
+      }
+      $image_config->update_track_renderer($node->id,$changes{$cell});
     }
   }
   $hub->session->store;
 }
 
-sub evidence {
+sub ajax_evidence {
   my ($self,$hub) = @_;
 
-  my (%evidence,%changed);
-
-  my $target = \%evidence;
-  foreach my $key (qw(evidence evidence_on evidence_off)) {
+  my %changed;
+  foreach my $key (qw(evidence_on evidence_off)) {
     foreach my $ev (split(/,/,uri_unescape($hub->param($key)))) {
-      $target->{$ev} = 1;
+      $changed{$key}->{$ev} = 1;
     }
-    $target = \%changed;
   }
 
   foreach my $image_config_name (qw(regulation_view reg_summary_page)) {
@@ -190,8 +211,10 @@ sub evidence {
         foreach my $node2 (@{$node->child_nodes}) {
           my $ev = $node2->id;
           $ev =~ s/^${type}_${cell}_//;
-          my $renderer = $evidence{$ev} ? 'on' : 'off';
-          next unless $changed{$ev};
+          my $renderer;
+          $renderer = 'on' if $changed{'evidence_on'}->{$ev};
+          $renderer = 'off' if $changed{'evidence_off'}->{$ev};
+          next unless $renderer;
           $image_config->update_track_renderer($node2->id,$renderer);
         }
       }
@@ -200,7 +223,7 @@ sub evidence {
   $hub->session->store;
 }
 
-sub reg_renderer {
+sub ajax_reg_renderer {
   my ($self,$hub) = @_;
 
   my $renderer = $hub->input->url_param('renderer');
@@ -215,7 +238,7 @@ sub reg_renderer {
   });
 }
 
-sub nav_config {
+sub ajax_nav_config {
   my ($self, $hub) = @_;
   my $session = $hub->session;
   my %args    = ( type => 'nav', code => $hub->param('code') );
@@ -232,7 +255,7 @@ sub nav_config {
   $session->set_data(%args, %data) if scalar grep $_ !~ /(type|code)/, keys %data;
 }
 
-sub data_table_config {
+sub ajax_data_table_config {
   my ($self, $hub) = @_;
   my $session = $hub->session;
   my $sorting = $hub->param('sorting');
@@ -247,7 +270,7 @@ sub data_table_config {
   $session->set_data(%args, %data) if scalar keys %data;
 }
 
-sub table_export {
+sub ajax_table_export {
   my ($self, $hub) = @_;
   my $r     = $hub->apache_handle;
   my $data  = from_json($hub->param('data'));
@@ -291,7 +314,7 @@ sub table_export {
   }
 }
 
-sub fetch_html {
+sub ajax_fetch_html {
   my ($self, $hub) = @_;
 
   my $url     = $hub->param('url');
@@ -301,7 +324,41 @@ sub fetch_html {
      $content = EnsEMBL::Web::File::Utils::URL::read_file($url, {'hub' => $hub, 'nice' => 1});
   }
 
-  print $content->{'content'} || '';
+  $content  = $content->{'content'} || '';
+  $content  =~ s/^.*<\s*body[^\>]*>\s*|\s*<\s*\/\s*body\s*>.+$//gis; # just keep the contents of body tag
+  $content  =~ s/<\s*(script|style)/<!-- /gis; # comment out script and style tags
+  $content  =~ s/<\s*\/\s*(script|style)[^>]*>/ -->/gis;
+  $content  =~ s/\s*((style|on[a-z]+)\s*\=\s*(\"|\'))/ x$1/gis; # disable any inline styles and JavaScript events
+
+  print $content;
+}
+
+sub ajax_autocomplete_geneid {
+  my ($self, $hub) = @_;
+  my $gene_id = $hub->param('q');
+  my @dbs     = map lc(substr $_, 9), @{$hub->species_defs->core_like_databases || []};
+  my $results = {};
+
+  foreach my $db (@dbs) {
+    my $gene_adaptor = $hub->get_adaptor('get_GeneAdaptor', $db);
+
+    if (my $gene = $gene_adaptor->fetch_by_stable_id($gene_id)) {
+
+      $gene = $gene->transform('toplevel');
+
+      $results = {
+        uc $gene_id => {
+          'label' => $gene->display_xref && $gene->display_xref->display_id || '',
+          'r'     => sprintf('%s:%d-%d', $gene->seq_region_name, $gene->start, $gene->end),
+          'db'    => $db,
+          'g'     => $gene_id
+        }
+      };
+      last;
+    }
+  }
+
+  print $self->jsonify($results);
 }
 
 1;

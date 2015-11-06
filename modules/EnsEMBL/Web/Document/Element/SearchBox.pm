@@ -35,7 +35,7 @@ sub search_options {
     'ensembl_all'     => { 'label' => 'Search all species',     'icon' => 'search/ensembl.gif'          },
     'ensembl_genomes' => { 'label' => 'Search Ensembl genomes', 'icon' => 'search/ensembl_genomes.gif'  },
     'vega'            => { 'label' => 'Search Vega',            'icon' => 'search/vega.gif'             },
-    'ebi'             => { 'label' => 'Search EBI',             'icon' => 'search/ebi.gif'              },
+    'ebi'             => { 'label' => 'Search EMBL-EBI',        'icon' => 'search/ebi.gif'              },
     'sanger'          => { 'label' => 'Search Sanger',          'icon' => 'search/sanger.gif'           }
   ];
 }
@@ -80,16 +80,15 @@ sub content {
           </div>
           <div>
             <label class="hidden" for="se_q">Search terms</label>
-            <input class="query inactive" id="se_q" type="text" name="q" value="$options_hash{$search_code}{'label'}&hellip;" data-role="none" />
+            <input class="query inactive" id="se_q" type="text" name="q" value="$options_hash{$search_code}{'label'}&hellip;" data-role="none" onkeydown="if (event.keyCode == 13) { \$(this).closest('form').submit(); return false; }" />
           </div>
-          <div class="button"><input type="image" src="${img_url}16/search.png" alt="Search&nbsp;&raquo;" /></div>
+          <div class="button"><img src="${img_url}16/search.png" alt="Search&nbsp;&raquo;" onClick="\$(this).closest('form').submit()" /></div>
         </div>
         <div class="site_menu hidden">
           $search_options
         </div>
       </form>
     </div>
-    <a href="/Multi/Search/New"><img src="/i/32/rev/search.png" title="Search this site" class="mobile-search mobile-only" /></a>
   );
 }
 

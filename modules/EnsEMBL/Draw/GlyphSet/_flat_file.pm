@@ -27,6 +27,7 @@ use List::Util qw(reduce);
 
 use EnsEMBL::Web::Text::FeatureParser;
 use EnsEMBL::Web::File::User;
+use EnsEMBL::Web::Utils::FormatText qw(add_links);
 use Bio::EnsEMBL::Variation::Utils::Constants;
 
 use base qw(EnsEMBL::Draw::GlyphSet::_alignment EnsEMBL::Draw::GlyphSet_wiggle_and_block);
@@ -56,6 +57,8 @@ sub draw_features {
       $min_score = $config->{'min_score'} unless $min_score;
       $max_score = $config->{'max_score'} unless $max_score;
       
+      my $subtitle = $config->{'name'} || $config->{'description'};
+      push @{$self->{'subtitle'}},$subtitle;
       $self->draw_wiggle_plot($features, { 
         min_score    => $min_score,
         max_score    => $max_score, 
@@ -64,7 +67,6 @@ sub draw_features {
         graph_type   => $graph_type,
         use_feature_colours => (lc($config->{'itemRgb'}||'') eq 'on'),
       });
-      push @{$self->{'subtitle'}},$config->{'description'};
     }
   }
   
@@ -115,20 +117,32 @@ sub features {
     }
   } 
 
+  my $key = $self->{'hover_label_class'}; 
+  my $hover_label = $self->{'config'}->{'hover_labels'}{$key};
+
   ## Now we translate all the features to their rightful co-ordinates
   while (my ($key, $T) = each (%{$parser->{'tracks'}})) {
-    $_->map($container) for @{$T->{'features'}};
- 
-    ## Set track depth a bit higher if there are lots of user features
-    $T->{'config'}{'dep'} = scalar @{$T->{'features'}} > 20 ? 20 : scalar @{$T->{'features'}};
-
-    ## Quick'n'dirty BED hack
+    
+    ## Filter out the features we don't want
+    my @ok_features;
     foreach (@{$T->{'features'}}) {
+      my $f = $_->map($container);
+      next unless ref($f); 
+      ## Quick'n'dirty BED hack
       if ($_->can('external_data') && $_->external_data && $_->external_data->{'BlockCount'}) {
         $self->{'my_config'}->set('has_blocks', 1);
-        last;
       }
+      push @ok_features, $f;
     }
+
+    my $description = $T->{'config'}{'description'};
+    if ($description) {
+      $description = add_links($description);
+      $hover_label->{'extra_desc'} = $description;
+    }
+ 
+    ## Set track depth a bit higher if there are lots of user features
+    $T->{'config'}{'dep'} = scalar @ok_features > 20 ? 20 : scalar @ok_features;
 
     ### ensure the display of the VEP features using colours corresponding to their consequence
     if ($self->my_config('format') eq 'VEP_OUTPUT') {
@@ -139,12 +153,12 @@ sub features {
       ## as single features in the next step 
       my %cons = map { # lowest rank consequence from comma-list
         $_->consequence => reduce { $cons_lookup{$a} < $cons_lookup{$b} ? $a : $b } split(/,/,$_->consequence); 
-      } @{$T->{'features'}};
-      @{$T->{'features'}} = sort {$a->start <=> $b->start
+      } @ok_features;
+      @ok_features = sort {$a->start <=> $b->start
           || $a->end <=> $b->end
           || $a->allele_string cmp $b->allele_string
           || $cons_lookup{$cons{$a->consequence}} <=> $cons_lookup{$cons{$b->consequence}}
-        } @{$T->{'features'}};
+        } @ok_features;
 
       my $colours = $species_defs->colour('variation');
       
@@ -152,7 +166,7 @@ sub features {
     
       ## Merge raw features into a set of unique variants with multiple consequences 
       my ($start, $end, $allele);
-      foreach (@{$T->{'features'}}) {
+      foreach (@ok_features) {
         my $last = $features->[-1];
         if ($last && $last->start == $_->start && $last->end == $_->end && $last->allele_string eq $_->allele_string) {
           push @{$last->external_data->{'Type'}[0]}, $_->consequence;
@@ -176,12 +190,11 @@ sub features {
       }
     }
     else {
-      $features = $T->{'features'};
+      $features = \@ok_features;
     }
 
     $results{$key} = [$features, $T->{'config'}];
   }
-
   return %results;
 }
 

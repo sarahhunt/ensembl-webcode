@@ -37,7 +37,7 @@ sub content {
   my $object = $self->object;
   
   ## first check we have a location.
-  return $self->_info('A unique location can not be determined for this Variation', $object->not_unique_location) if $object->not_unique_location;
+  return $self->_info('A unique location can not be determined for this variant', $object->not_unique_location) if $object->not_unique_location;
   
   my $hub          = $self->hub;
   my $species_defs = $hub->species_defs;
@@ -65,7 +65,7 @@ sub summary_table {
     { key => 'desc',   title => 'Description',             sort => 'string', align => 'left'   },
     { key => 'tags',   title => 'Tags',                    sort => 'string', align => 'right'  },
     { key => 'tagged', title => 'Tagged by',               sort => 'string', align => 'right'  },
-    { key => 'table',  title => 'Linked variations table', sort => 'none',   align => 'center' },
+    { key => 'table',  title => 'Linked variants table',   sort => 'none',   align => 'center' },
     { key => 'plot',   title => 'LD plot (image)',         sort => 'none',   align => 'center' },
     { key => 'export', title => 'LD plot (table)',         sort => 'none',   align => 'center' },
   ], [], { data_table => 1, sorting => [ 'name asc' ] });
@@ -89,6 +89,7 @@ sub summary_table {
  
   foreach my $pop (@pops) {
     my $description = $pop->description;
+       $description ||= '-';
     
     if (length $description > 30) {
       my $full_desc = $self->strip_HTML($description);
@@ -106,18 +107,19 @@ sub summary_table {
     my $pop_dbSNP = $pop->get_all_synonyms('dbSNP');
 
     my $pop_label = $pop_name;
-    if ($pop_label =~ /^.+\:.+$/) {
-      $pop_label =~ s/\:/\:<b>/;
-      $pop_label .= '</b>';
+    if ($pop_label =~ /^.+\:.+$/ and $pop_label !~ /(http|https):/) {
+      my @composed_name = split(':', $pop_label);
+      $composed_name[$#composed_name] = '<b>'.$composed_name[$#composed_name].'</b>';
+      $pop_label = join(':',@composed_name);
     }
 
     # Population external links
     my $pop_url;
     if ($pop_name =~ /^1000GENOMES/) { 
-      $pop_url = $pop_label.$self->hub->get_ExtURL_link($img_info, '1KG_POP', $pop_name);
+      $pop_url = $self->hub->get_ExtURL_link($pop_label, '1KG_POP', $pop_name);
     }
     else {
-      $pop_url = $pop_dbSNP ? $pop_label.$self->hub->get_ExtURL_link($img_info, 'DBSNPPOP', $pop_dbSNP->[0]) : $pop_label;
+      $pop_url = $pop_dbSNP ? $self->hub->get_ExtURL_link($pop_label, 'DBSNPPOP', $pop_dbSNP->[0]) : $pop_label;
     }
     
     my $row = {
@@ -173,12 +175,12 @@ sub summary_table {
   my $html = '<h2>Links to linkage disequilibrium data by population</h2>';
   
   if ($table_with_no_rows) {
-    $html .= $self->_hint('HighLD', 'Linked variation information', qq{
-      <p>A variation may have no LD data in a given population for the following reasons:</p>
+    $html .= $self->_hint('HighLD', 'Linked variant information', qq{
+      <p>A variant may have no LD data in a given population for the following reasons:</p>
       <ul>
-        <li>Linked variations are being filtered out by page configuration</li>
-        <li>Variation $v has a minor allele frequency close or equal to 0</li>
-        <li>Variation $v does not have enough genotypes to calculate LD values</li>
+        <li>Linked variants are being filtered out by page configuration</li>
+        <li>Variant $v has a minor allele frequency close or equal to 0</li>
+        <li>Variant $v does not have enough genotypes to calculate LD values</li>
         <li>Estimated r<sup>2</sup> values are below 0.05 and have been filtered out</li>
       </ul>
     });
@@ -202,7 +204,7 @@ sub linked_var_table {
   $Bio::EnsEMBL::Variation::DBSQL::LDFeatureContainerAdaptor::TMP_PATH    = $species_defs->ENSEMBL_TMP_TMP;
   
   my $v               = $object->name;
-  my $source          = $variation->source;
+  my $source          = $variation->source_name;
   my $pfa             = $variation->adaptor->db->get_PhenotypeFeatureAdaptor;
   my $ldca            = $variation->adaptor->db->get_LDFeatureContainerAdaptor;
   my $max_distance    = $hub->param('max_distance') || 50000;  
@@ -234,13 +236,14 @@ sub linked_var_table {
   my $temp_slice          = $vf->feature_Slice->expand($max_distance, $max_distance);
   my $pop_id              = $pop->dbID;
   my $pop_name            = $pop->name;
+  my $glossary            = $hub->glossary_lookup;
   my $tables_with_no_rows = 0;
   my $table               = $self->new_table([
-    { key => 'variation',   title => 'Variation',               align => 'left', sort => 'html'                 },
+    { key => 'variation',   title => 'Variant',               align => 'left', sort => 'html'                 },
     { key => 'location',    title => 'Location',                align => 'left', sort => 'position_html'        },
     { key => 'distance',    title => 'Distance (bp)',           align => 'left', sort => 'numeric'              },
-    { key => 'r2',          title => 'r<sup>2</sup>',           align => 'left', sort => 'numeric'              },
-    { key => 'd_prime',     title => q{D'},                     align => 'left', sort => 'numeric'              },
+    { key => 'r2',          title => 'r<sup>2</sup>',           align => 'left', sort => 'numeric', help => $glossary->{'r2'} },
+    { key => 'd_prime',     title => q{D'},                     align => 'left', sort => 'numeric', help => $glossary->{"D'"} },
     { key => 'tags',        title => 'Tags',                    align => 'right',  sort => 'string'               },
     { key => 'tagged',      title => 'Tagged by',               align => 'right',  sort => 'string'               },
     { key => 'pfs',         title => 'Associated phenotype(s)', align => 'left', sort => 'html', width => '20%' },
@@ -295,7 +298,7 @@ sub linked_var_table {
       
       my $pf_string;
       
-      # check if any VAs for this variation
+      # check if any VAs for this Variant
       if ($ld->{'pfs'}) {
         $pf_string .= '<table style="border:none;width:100%;padding:0;margin:0">';
         
@@ -400,8 +403,8 @@ sub linked_var_table {
   }
   
   return $table->has_rows ?
-    $self->toggleable_table("Variations linked to $v in $pop_name", $pop_id, $table, 1, qq{<span style="float:right"><a href="#$self->{'id'}_top">[back to top]</a></span>}) :
-    '<h3>No variations found</h3><br /><br />';
+    $self->toggleable_table("Variants linked to $v in $pop_name", $pop_id, $table, 1, qq{<span style="float:right"><a href="#$self->{'id'}_top">[back to top]</a></span>}) :
+    '<h3>No variants found</h3><br /><br />';
 }
 
 sub ld_populations {
@@ -505,7 +508,7 @@ sub tag_data {
       '<a href="#" rel="list_%s_%s" class="toggle closed">%i variants</a>'.
       '<div class="list_%s_%s"><div class="toggleable" style="display:none">%s</div></div>',
       $vf->dbID, $pop->dbID,
-      scalar @tagged_list,
+      scalar @tagged_by_list,
       $vf->dbID, $pop->dbID,
       join("<br>", @tagged_by_list)
     );

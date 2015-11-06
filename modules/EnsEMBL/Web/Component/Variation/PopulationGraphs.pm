@@ -31,8 +31,7 @@ sub _init {
 sub content {
   my $self      = shift;
   my $hub       = $self->hub;
-  my $freq_data = $self->object->freqs;
-  my $pop_freq  = $self->format_frequencies($freq_data);
+  my $pop_freq  = $self->object->format_group_population_freqs();
   
   return unless defined $pop_freq;
   
@@ -90,6 +89,7 @@ sub content {
         next unless $freq;
         
         $values .= ',' if $values ne '';
+        $freq    = $self->format_number($freq);
         $freq    = 0.5 if $freq < 0.5; # Fixed bug if freq between 0 and 0.5
         if (length($al)>4) {
           $al = substr($al,0,4).'...';
@@ -110,7 +110,7 @@ sub content {
         <div class="pie_chart_holder">
           <div class="pie_chart%s">
             <div style="margin:4px">
-              <span class="_ht conhelp" style="font-size:1em;font-weight:bold" title="%s">%s</span>
+              <span class="_ht ht" style="font-size:1em;font-weight:bold" title="%s">%s</span>
             </div>
             <div id="graphHolder%s" style="width:%ipx;height:%ipx"></div>
           </div>
@@ -123,11 +123,11 @@ sub content {
         <div class="pie_chart_holder">
           <div class="pie_chart">
             <div style="margin:4px">
-              <span class="_ht conhelp" style="font-size:1em;font-weight:bold" title="%s">%s</span>
+              <span class="_ht ht" style="font-size:1em;font-weight:bold" title="%s">%s</span>
             </div>
             <div id="graphHolder%s" style="width:%ipx;height:%ipx"></div>
           </div>
-          <a class="toggle %s _slide_toggle set_cookie" href="#population_freq_%s" style="margin-left:5px" rel="population_freq_%s" title="Click to toggle sub-population frequencies">Sub-populations</a>
+          <a class="toggle %s _slide_toggle set_cookie" href="#" style="margin-left:5px" rel="population_freq_%s" title="Click to toggle sub-population frequencies">Sub-populations</a>
         </div>
       ', $pop_desc, $short_name, $graph_id, $width, $height, 
          $hub->get_cookie_value("toggle_population_freq_$short_name") eq 'open' ? 'open' : 'closed', 
@@ -140,7 +140,7 @@ sub content {
           <div class="pie_chart_holder">
             <div class="pie_chart">
               <div style="margin:4px">
-                <span class="_ht conhelp" style="font-size:1em;font-weight:bold" title="%s">%s</span>
+                <span class="_ht ht" style="font-size:1em;font-weight:bold" title="%s">%s</span>
               </div>
               <div id="graphHolder%s" style="width:%ipx;height:%ipx"></div>
             </div>
@@ -176,60 +176,18 @@ sub content {
   return $html;
 }
 
-sub format_frequencies {
-  my ($self, $freq_data) = @_;
-  my $hub = $self->hub;
-  my $pop_freq;
-  my $main_priority_level;
-
-  # Get the main priority group level
-  foreach my $pop_id (keys %$freq_data) {
-    my $priority_level = $freq_data->{$pop_id}{'pop_info'}{'GroupPriority'};
-    next if (!defined($priority_level));
-
-    $main_priority_level = $priority_level if (!defined($main_priority_level) || $main_priority_level > $priority_level);
-  }
-  return undef if (!defined($main_priority_level));
-
-  foreach my $pop_id (keys %$freq_data) {
-    ## is it a priority project ?
-    my $priority_level = $freq_data->{$pop_id}{'pop_info'}{'GroupPriority'};
-    next if (!defined($priority_level) || $priority_level!=$main_priority_level);
-
-    my $pop_name = $freq_data->{$pop_id}{'pop_info'}{'Name'};
-
-    $pop_freq->{$pop_name}{'desc'}    = $freq_data->{$pop_id}{'pop_info'}{'Description'};
-    $pop_freq->{$pop_name}{'sub_pop'} = $freq_data->{$pop_id}{'pop_info'}{'Sub-Population'} if scalar keys %{$freq_data->{$pop_id}{'pop_info'}{'Sub-Population'}};
-    $pop_freq->{$pop_name}{'group'}   = $freq_data->{$pop_id}{'pop_info'}{'PopGroup'};
-
-    foreach my $ssid (keys %{$freq_data->{$pop_id}{'ssid'}}) {
-      next if $freq_data->{$pop_id}{$ssid}{'failed_desc'};
-      
-      my @allele_freq = @{$freq_data->{$pop_id}{'ssid'}{$ssid}{'AlleleFrequency'}};
-      
-      foreach my $gt (@{$freq_data->{$pop_id}{'ssid'}{$ssid}{'Alleles'}}) {
-        next unless $gt =~ /(\w|\-)+/;
-        
-        my $freq = $self->format_number(shift @allele_freq);
-        
-        $pop_freq->{$pop_name}{'freq'}{$ssid}{$gt} = $freq if $freq ne 'unknown';
-      }
-    }
-  }
-  
-  return $pop_freq;
-}
-
-
 sub format_number {
   ### Population_genotype_alleles
   ### Arg1 : null or a number
   ### Returns "unknown" if null or formats the number to 3 decimal places
 
   my ($self, $number) = @_;
-  $number = $number * 100 if defined $number;
-  return defined $number ? sprintf '%.2f', $number : 'unknown';
+  return 'unknown' if (!defined($number) || $number eq 'unknown');
+
+  $number = $number * 100;
+  return sprintf '%.2f', $number;
 }
+
 
 sub update_pop_tree {
   my ($self, $p_tree, $p_name, $sub_list) = @_;
