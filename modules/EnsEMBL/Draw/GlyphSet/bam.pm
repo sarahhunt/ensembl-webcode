@@ -65,6 +65,9 @@ sub render_normal {
   #$options{show_consensus} = $options{show_reads} unless defined $options{show_consensus}; # show consensus if showing reads
   $options{show_consensus} = 1 unless defined $options{show_consensus};
 
+  warn( "rn6DEBUG:bam.pm:entering render_normal\n" ) ;
+
+
   # check threshold
   my $slice = $self->{'container'};
   if (my $threshold = $self->my_config('threshold')) {
@@ -73,6 +76,7 @@ sub render_normal {
       return;
     }
   }
+  warn( "rn6DEBUG:bam.pm:render_normal: threshold checked\n" ) ;
 
   $self->{_yoffset} = 0; # used to track the y offset as we draw
 
@@ -84,14 +88,16 @@ sub render_normal {
     # render
     if (!scalar(@{&features($self)})) {
       $self->no_features;
+        warn( "rn6DEBUG:bam.pm:render_normal: NO FEATURES FOUND\n" ) ;
     } else {
+        warn( "rn6DEBUG:bam.pm:render_normal: YES, FEATURES FOUND\n" ) ;
       $self->render_caption;
-      #print STDERR "Rendering coverage\n";
+      warn "Rendering coverage option:".$options{show_coverage}."\n";
       $self->render_coverage(%options) if $options{show_coverage};
-      #print STDERR "Done rendering coverage\n";
-      #print STDERR "Rendering reads\n";
+      warn "Done rendering coverage\n";
+      warn "Rendering reads\n";
       $self->render_sequence_reads(%options) if $options{show_reads};
-      #print STDERR "Done rendering reads\n";
+      warn "Done rendering reads\n";
     }
     alarm 0;
   };
@@ -145,14 +151,21 @@ sub bam_adaptor {
 sub features {
 ## get the alignment features
   my $self = shift;
-
   my $slice = $self->{'container'};
-  if (!exists($self->{_cache}->{features})) {
+  warn "rn6DEBUG:Glyphset bam.pm features: - entering" ;
+  
+  if (!exists($self->{_cache}->{features})) 
+  {
     $self->{_cache}->{features} = $self->bam_adaptor->fetch_alignments_filtered($slice->seq_region_name, $slice->start, $slice->end);
   }
-
-  # $self->{_cache}->{features} ||= $self->bam_adaptor->fetch_alignments_filtered($slice->seq_region_name, $slice->start, $slice->end);
-
+  my $d_count = 0 ;
+  my $featref = $self->{_cache}->{features} ;
+  for my $d ( @$featref  )
+  {
+    print ("$d_count\n") ;
+    $d_count++ ;
+  }
+  warn "rn6DEBUG:Glyphset bam.pm features: - returning" ;
   return $self->{_cache}->{features};
 }
 
@@ -278,11 +291,12 @@ sub render_coverage {
 
   # defaults
   $options{show_consensus} = 1 unless defined $options{show_consensus};
-
+  warn("rn6DEBUG:bam.pm:render_coverage entered\n") ;
   my @coverage = @{$self->calc_coverage};
 
 
   my $max = (sort {$b <=> $a} @coverage)[0];
+  warn("rn6DEBUG:bam.pm:render_coverage max:".$max."\n") ;
   return if $max == 0; # nothing to show
 
   my $viewLimits = $self->my_config('viewLimits');
@@ -290,6 +304,7 @@ sub render_coverage {
     my ($min_score,$max_score) = split ":",$viewLimits;
     $max = $max_score;
   }
+  warn("rn6DEBUG:bam.pm:render_coverage max score update:".$max."\n") ;
 
   my $slice = $self->{'container'};
   my $smax = 100;
@@ -300,6 +315,7 @@ sub render_coverage {
   if ($ppbp > 1 && $options{show_consensus}) {
     @consensus = @{$self->consensus_features};
   }
+  warn("rn6DEBUG:bam.pm:render_coverage consensus features:".scalar(@consensus)."\n") ;
   #print STDERR "Have " . scalar(@consensus) . " consensus features\n";
 
   # text stuff
@@ -309,7 +325,7 @@ sub render_coverage {
 
 #  print STDERR "font_w = $font_w slice length = " . $slice->length . " ppbp = $ppbp\n";
 
-
+  warn("rn6DEBUG:bam.pm:render_coverage starting loop\n") ;
   foreach my $i (0..$#coverage) {
     my $cvrg = $coverage[$i];
     my $cons = $consensus[$i];
@@ -361,6 +377,7 @@ sub render_coverage {
       }));
     };
   }
+  warn("rn6DEBUG:bam.pm:render_coverage ending loop\n") ;
 
   $self->push($self->Rect({
     'x'      => 0,
@@ -884,7 +901,7 @@ sub _get_sequence {
 sub calc_coverage {
 ## calculate the coverage
   my ($self) = @_;
-
+  warn("rn6DEBUG:bam.pm: calc_coverage entered\n") ;
   my $features = &features($self);
 
   my $slice = $self->{'container'};
@@ -902,12 +919,12 @@ sub calc_coverage {
     $sample_size = 1;
     $lbin = $slength;
   }
-
+  warn("rn6DEBUG:bam.pm: calc_coverage variables initialised\n") ;
   #print STDERR "sample_size =  " . $sample_size . "\n";
 
   my $coverage = $self->c_coverage($features, $sample_size, $lbin, $START);
      $coverage = [reverse @$coverage] if $slice->strand == -1;
-
+  warn("rn6DEBUG:bam.pm: calc_coverage coverage calculated, exiting\n") ;
   #print STDERR "Done coverage, ended with type " . ref($coverage) . "\n";
   return $coverage;
 }
@@ -930,8 +947,6 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
 
   //fprintf(stderr,"calc coverage for %d features, lbin = %d\n",av_len(features)+1,lbin);
   //fflush(stderr);
-
-
 
   for (i=0; i<=av_len(features); i++) {
     SV** elem = av_fetch(features, i, 0);
