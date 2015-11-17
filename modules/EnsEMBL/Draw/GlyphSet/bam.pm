@@ -477,7 +477,7 @@ BEGIN {
   mkdir $cbuild_dir unless -e $cbuild_dir;
 };
 
-use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR",
+use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR/hts",
                           LIBS => "-L$SiteDefs::SAMTOOLS_DIR -lbam",
                           DIRECTORY => $cbuild_dir;
 
@@ -938,6 +938,9 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
   int i;
   AV* features;
 
+  fprintf(stderr, "rn6DEBUG:entered c_coverage\n") ;
+  fflush(stderr) ;
+
   if (! SvROK(features_ref)) {
     croak("features_ref is not a reference");
     fflush(stderr);
@@ -945,8 +948,8 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
 
   features = (AV*)SvRV(features_ref);
 
-  //fprintf(stderr,"calc coverage for %d features, lbin = %d\n",av_len(features)+1,lbin);
-  //fflush(stderr);
+  fprintf(stderr,"calc coverage for %d features, lbin = %d\n",av_len(features)+1,lbin);
+  fflush(stderr);
 
   for (i=0; i<=av_len(features); i++) {
     SV** elem = av_fetch(features, i, 0);
