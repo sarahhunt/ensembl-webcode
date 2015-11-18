@@ -162,7 +162,7 @@ sub features {
   my $featref = $self->{_cache}->{features} ;
   for my $d ( @$featref  )
   {
-    print ("$d_count\n") ;
+    #print ("$d_count\n") ;
     $d_count++ ;
   }
   warn "rn6DEBUG:Glyphset bam.pm features: - returning" ;
