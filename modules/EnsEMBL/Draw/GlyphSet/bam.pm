@@ -294,7 +294,6 @@ sub render_coverage {
   warn("rn6DEBUG:bam.pm:render_coverage entered\n") ;
   my @coverage = @{$self->calc_coverage};
 
-
   my $max = (sort {$b <=> $a} @coverage)[0];
   warn("rn6DEBUG:bam.pm:render_coverage max:".$max."\n") ;
   return if $max == 0; # nothing to show
@@ -919,13 +918,11 @@ sub calc_coverage {
     $sample_size = 1;
     $lbin = $slength;
   }
-  warn("rn6DEBUG:bam.pm: calc_coverage variables initialised\n") ;
-  #print STDERR "sample_size =  " . $sample_size . "\n";
+  warn("rn6DEBUG:bam.pm: calc_coverage variables initialised. sample_size =  " . $sample_size . "\n") ;
 
   my $coverage = $self->c_coverage($features, $sample_size, $lbin, $START);
-     $coverage = [reverse @$coverage] if $slice->strand == -1;
+  $coverage = [reverse @$coverage] if $slice->strand == -1;
   warn("rn6DEBUG:bam.pm: calc_coverage coverage calculated, exiting\n") ;
-  #print STDERR "Done coverage, ended with type " . ref($coverage) . "\n";
   return $coverage;
 }
 
@@ -948,7 +945,7 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
 
   features = (AV*)SvRV(features_ref);
 
-  fprintf(stderr,"calc coverage for %d features, lbin = %d\n",av_len(features)+1,lbin);
+  fprintf(stderr,"calc coverage for %d features, lbin = %d, sample_size=%f\n",av_len(features)+1,lbin,sample_size);
   fflush(stderr);
 
   for (i=0; i<=av_len(features); i++) {
@@ -967,14 +964,16 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
     f = (bam1_t *)SvIV(SvRV(*elem));
 
     fstart = f->core.pos+1;
-    fend = bam_endpos(&f);
+    fend = bam_endpos(f); 
+    
 
     sbin = (int)((fstart - START) / sample_size);
     ebin = (int)((fend - START) / sample_size);
+    fprintf(stderr, "%d\t%d\t%d\n",i,fstart,fend);
 
     if (sbin < 0) sbin = 0;
     if (ebin > lbin) ebin = lbin;
-
+    
     for (j = sbin; j <= ebin; j++) {
       coverage[j]++;
     }
