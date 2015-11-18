@@ -552,7 +552,7 @@ AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart,
         int end;
         int bumpend;
         int width;
-        int fend = bam_calend(&f->core,bam_get_cigar(f));
+        int fend = bam_endpos(&f);
 
         end = fend - slicestart;
         if (end < 0) end = 0;
