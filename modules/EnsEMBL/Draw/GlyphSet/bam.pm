@@ -477,15 +477,15 @@ BEGIN {
   mkdir $cbuild_dir unless -e $cbuild_dir;
 };
 
-use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR/hts",
-                          LIBS => "-L$SiteDefs::SAMTOOLS_DIR -lbam",
+use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR/htslib",
+                          LIBS => "-L$SiteDefs::SAMTOOLS_DIR -lhts",
                           DIRECTORY => $cbuild_dir;
 
 ##    Inline->init;
 #
 use Inline C => <<'END_OF_C_CODE';
 
-#include "bam.h"
+#include "sam.h"
 
 AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart, int sliceend) {
   AV* filtered = newAV();
@@ -552,7 +552,7 @@ AV * pre_filter_depth (SV* features_ref, int depth, double ppbp, int slicestart,
         int end;
         int bumpend;
         int width;
-        int fend = bam_calend(&f->core,bam1_cigar(f));
+        int fend = bam_calend(&f->core,bam_get_cigar(f));
 
         end = fend - slicestart;
         if (end < 0) end = 0;
@@ -931,7 +931,7 @@ sub calc_coverage {
 
 use Inline C => <<'END_OF_CALC_COV_C_CODE';
 
-#include "bam.h"
+#include "sam.h"
 AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int START) {
   AV *ret_cov = newAV();
   int *coverage = calloc(lbin+1,sizeof(int));
@@ -967,7 +967,7 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
     f = (bam1_t *)SvIV(SvRV(*elem));
 
     fstart = f->core.pos+1;
-    fend = bam_calend(&f->core,bam1_cigar(f));
+    fend = bam_endpos(&f);
 
     sbin = (int)((fstart - START) / sample_size);
     ebin = (int)((fend - START) / sample_size);
@@ -979,6 +979,9 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
       coverage[j]++;
     }
   }
+  fprintf(stderr, "Done main loop c_coverage\n");
+  fflush(stderr);
+
 
   av_extend(ret_cov, lbin);
   for (i = 0; i <= lbin; i++) {
@@ -987,8 +990,8 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
 
   free(coverage);
 
-  //fprintf(stderr, "Done c_coverage\n");
-  //fflush(stderr);
+  fprintf(stderr, "Done c_coverage\n");
+  fflush(stderr);
   return ret_cov;
 }
 
