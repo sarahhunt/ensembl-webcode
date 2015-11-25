@@ -41,7 +41,7 @@ sub check_data {
 
   if (ref($url) eq 'HASH') {
     $error = $url->{'error'}[0];
-    warn "!!! ERROR ATTACHING CRAM (pretending to be BAM): $error";
+    warn "!!! ERROR ATTACHING BAM: $error";
   }
   else {
     if ($url =~ /^ftp:\/\//i && !$self->{'hub'}->species_defs->ALLOW_FTP_BAM) {
