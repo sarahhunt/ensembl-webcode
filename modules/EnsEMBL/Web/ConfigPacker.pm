@@ -1747,7 +1747,8 @@ sub _munge_file_formats {
     'vep_input' => {'ext' => 'txt', 'label' => 'VEP',       'display' => 'feature'},
     'wig'       => {'ext' => 'wig', 'label' => 'WIG',       'display' => 'graph'},
     ## Remote only - cannot be uploaded
-    'bam'       => {'ext' => 'cram','label' => 'BAM',       'display' => 'graph', 'remote' => 1},
+    'bam'       => {'ext' => 'bam','label' => 'BAM',       'display' => 'graph', 'remote' => 1},
+    'cram'      => {'ext' => 'cram','label' => 'CRAM',       'display' => 'graph', 'remote' => 1},
     'bigwig'    => {'ext' => 'bw',  'label' => 'BigWig',    'display' => 'graph', 'remote' => 1},
     'bigbed'    => {'ext' => 'bb',  'label' => 'BigBed',    'display' => 'graph', 'remote' => 1},
     'trackhub'  => {'ext' => 'txt', 'label' => 'Track Hub', 'display' => 'graph', 'remote' => 1},
