@@ -68,6 +68,7 @@ sub PARSER_FORMATS {
 sub USERDATA_FORMATS {
   return {
     'bam'       => {'ext' => 'bam', 'label' => 'BAM',       'display' => 'graph',   'limit' => 'remote'},
+    'cram'       => {'ext' => 'cram', 'label' => 'CRAM',    'display' => 'graph',   'limit' => 'remote'},
     'bed'       => {'ext' => 'bed', 'label' => 'BED',       'display' => 'feature'},
     'bedgraph'  => {'ext' => 'bed', 'label' => 'bedGraph',  'display' => 'graph'},
     'bigbed'    => {'ext' => 'bb',  'label' => 'BigBed',    'display' => 'graph',   'limit' => 'remote'},

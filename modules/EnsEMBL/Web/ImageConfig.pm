@@ -1204,6 +1204,37 @@ sub _add_bam_track {
   );
 }
 
+sub _add_cram_track {
+  my ($self, %args) = @_;
+  my $desc = '
+    The read end bars indicate the direction of the read and the colour indicates the type of read pair:
+    Green = both mates are part of a proper pair; Blue = either this read is not paired, or its mate was not mapped; Red = this read is not properly paired.
+  ';
+ 
+
+  ## Override default renderer (mainly used by trackhubs)
+  my %options;
+  $options{'display'} = $args{'source'}{'display'} if $args{'source'}{'display'};
+ 
+  $self->_add_file_format_track(
+    format      => 'CRAM',
+    description => $desc,
+    renderers   => [
+                    'off',       'Off',
+                    'normal',    'Normal',
+                    'unlimited', 'Unlimited',
+                    'histogram', 'Coverage only'
+                    ],
+    colourset   => 'BAM',
+    options => {
+      external => 'external',
+      sub_type => 'cram',
+      %options,
+    },
+    %args,
+  );
+}
+
 sub _add_bigbed_track {
   my ($self, %args) = @_;
  
