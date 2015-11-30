@@ -71,7 +71,7 @@ sub check_data {
       warn "Failed to open CRAM index for " . $url unless $index;
 
       if ($@ or !$hts_file or !$index) {
-        $error = "Unable to open/index remote BAM file: $url<br>Ensembl can only display sorted, indexed BAM files.<br>Please ensure that your web server is accessible to the Ensembl site and both your BAM and index files are present and publicly readable.<br>Your BAM and index files must have the same name, with a .bam extension for the BAM file, and a .bam.bai extension for the index file.";
+        $error = "Unable to open/index remote CRAM file: $url<br>Ensembl can only display sorted, indexed CRAM files.<br>Please ensure that your web server is accessible to the Ensembl site and both your CRAM and index files are present and publicly readable.<br>Your CRAM and index files must have the same name, with a .cram extension for the BAM file, and a .cram.crai extension for the index file.";
       }
     }
   }

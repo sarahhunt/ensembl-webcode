@@ -52,13 +52,13 @@ sub check_data {
       # try to open and use the bam file and its index -
       # this checks that the bam and index files are present and correct, 
       # and should also cause the index file to be downloaded and cached in /tmp/ 
-      my ($sam, $hts_file, $index);
+      my ($hts, $hts_file, $index);
       eval 
       {
         # Note the reason this uses Bio::DB::Sam->new rather than Bio::DB::Bam->open is to allow set up
         # of default cache dir (which happens in Bio::DB:Sam->new) -
         $hts = Bio::DB::HTS->new(-bam => $url);
-        $hts_file = $sam->hts_file;
+        $hts_file = $hts->hts_file;
         $index = Bio::DB::HTSfile->index($hts_file) ;
 
         my $header = $hts_file->header;
