@@ -58,17 +58,12 @@ sub check_data {
         # Note the reason this uses Bio::DB::HTS->new rather than Bio::DB::Bam->open is to allow set up
         # of default cache dir (which happens in Bio::DB:HTS->new) -
         $hts = Bio::DB::HTS->new(-bam => $url);
-        warn("rn6DEBUG:AttachedFormat-CRAM-file opened     ") ;
         $hts_file = $hts->hts_file;
-        warn("rn6DEBUG:AttachedFormat-CRAM-htsfile set           ") ;
         $index = Bio::DB::HTSfile->index($hts) ;
-        warn("rn6DEBUG:AttachedFormat-CRAM-file indexed    ") ;
-        my $header = $hts_file->header;
+        my $header = $hts->header;
         my $region = $header->target_name->[0];
         my $callback = sub {return 1};
-        warn("rn6DEBUG:AttachedFormat-CRAM-fetch calling for $region    ") ;
         $index->fetch($hts_file, $header->parse_region("$region:1-10"), $callback);
-        warn("rn6DEBUG:AttachedFormat-CRAM-fetch called for $region     ") ;
       };
       warn $@ if $@;
       warn "Failed to open CRAM " . $url unless $hts_file;
