@@ -57,14 +57,19 @@ sub check_data {
       {
         # Note the reason this uses Bio::DB::Sam->new rather than Bio::DB::Bam->open is to allow set up
         # of default cache dir (which happens in Bio::DB:Sam->new) -
+        warn("rn6DEBUG:AttachedFormat-BAM-file opening for $url           ") ;
         $hts = Bio::DB::HTS->new(-bam => $url);
+        warn("rn6DEBUG:AttachedFormat-BAM-file opened ".$hts->hts_path ) ;
         $hts_file = $hts->hts_file;
-        $index = Bio::DB::HTSfile->index($hts_file) ;
-
+        warn("rn6DEBUG:AttachedFormat-BAM-htsfile set           ") ;
+        $index = Bio::DB::HTSfile->index($hts) ;
+        warn("rn6DEBUG:AttachedFormat-BAM-file indexed          ") ;
         my $header = $hts_file->header;
         my $region = $header->target_name->[0];
         my $callback = sub {return 1};
+        warn("rn6DEBUG:AttachedFormat-BAM-fetch calling for $region      ") ;
         $index->fetch($hts_file, $header->parse_region("$region:1-10"), $callback);
+        warn("rn6DEBUG:AttachedFormat-BAM-fetch called for $region       ") ;
       };
       warn $@ if $@;
       warn "Failed to open BAM " . $url unless $hts_file;
