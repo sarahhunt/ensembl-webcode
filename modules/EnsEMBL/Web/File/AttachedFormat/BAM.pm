@@ -60,7 +60,7 @@ sub check_data {
         $hts = Bio::DB::HTS->new(-bam => $url);
         $hts_file = $hts->hts_file;
         $index = Bio::DB::HTSfile->index($hts) ;
-        my $header = $hts_file->header;
+        my $header = $hts->header;
         my $region = $header->target_name->[0];
         my $callback = sub {return 1};
         $index->fetch($hts_file, $header->parse_region("$region:1-10"), $callback);
