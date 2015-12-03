@@ -46,14 +46,14 @@ sub check_data {
   else {
     if ($url =~ /^ftp:\/\//i && !$self->{'hub'}->species_defs->ALLOW_FTP_BAM) {
       $error = "The cram file could not be added - FTP is not supported, please use HTTP.";
-    } 
+    }
     else {
       $self->_check_cached_index;
       # try to open and use the cram file and its index -
-      # this checks that the cram and index files are present and correct, 
-      # and should also cause the index file to be downloaded and cached in /tmp/ 
+      # this checks that the cram and index files are present and correct,
+      # and should also cause the index file to be downloaded and cached in /tmp/
       my ($hts, $hts_file, $index);
-      eval 
+      eval
       {
         # Note the reason this uses Bio::DB::HTS->new rather than Bio::DB::Bam->open is to allow set up
         # of default cache dir (which happens in Bio::DB:HTS->new) -
@@ -70,31 +70,30 @@ sub check_data {
       warn "Failed to open CRAM index for " . $url unless $index;
 
       if ($@ or !$hts_file or !$index) {
-        $error = "Unable to open/index remote CRAM file: $url<br>Ensembl can only display sorted, indexed CRAM files.<br>Please ensure that your web server is accessible to the Ensembl site and both your CRAM and index files are present and publicly readable.<br>Your CRAM and index files must have the same name, with a .cram extension for the BAM file, and a .cram.crai extension for the index file.";
+        $error = "Unable to open/index remote CRAM file: $url<br>Ensembl can only display sorted, indexed CRAM files.<br>Please ensure that your web server is accessible to the Ensembl site and both your CRAM and index files are present and publicly readable.<br>Your CRAM and index files must have the same name, with a .cram extension for the CRAM file, and a .cram.crai extension for the index file.";
       }
     }
   }
   return ($url, $error);
 }
 
-# Ensure there is no out-of-date cached CRAM index by deleting the local 
+# Ensure there is no out-of-date cached CRAM index by deleting the local
 # version if it exists and is older than the remote version. Samtools will
 # then fetch a fresh copy of the index if needed.
 sub _check_cached_index {
   my ($self) = @_;
   my $index_url = $self->{url} . '.crai';
   my $tmp_file  = File::Spec->tmpdir . '/' . fileparse($index_url);
-  
+
   if (-f $tmp_file) {
-    my $local_time  = int stat($tmp_file)->[9];   
+    my $local_time  = int stat($tmp_file)->[9];
     my $remote_time = int eval { LWP::UserAgent->new->head($index_url)->last_modified };
-    
+
     if ($local_time <= $remote_time) {
       warn "Cached CRAM index is older than remote - deleting $tmp_file";
       unlink $tmp_file;
-    } 
-  } 
+    }
+  }
 }
 
 1;
-
