@@ -153,8 +153,8 @@ sub features {
   my $self = shift;
   my $slice = $self->{'container'};
   warn "rn6DEBUG:Glyphset bam.pm features: - entering" ;
-  
-  if (!exists($self->{_cache}->{features})) 
+
+  if (!exists($self->{_cache}->{features}))
   {
     $self->{_cache}->{features} = $self->bam_adaptor->fetch_alignments_filtered($slice->seq_region_name, $slice->start, $slice->end);
   }
@@ -476,8 +476,8 @@ BEGIN {
   mkdir $cbuild_dir unless -e $cbuild_dir;
 };
 
-use Inline C => Config => INC => "-I$SiteDefs::SAMTOOLS_DIR/htslib",
-                          LIBS => "-L$SiteDefs::SAMTOOLS_DIR -lhts",
+use Inline C => Config => INC => "-I$SiteDefs::HTSLIB_DIR/htslib",
+                          LIBS => "-L$SiteDefs::HTSLIB_DIR -lhts",
                           DIRECTORY => $cbuild_dir;
 
 ##    Inline->init;
@@ -964,8 +964,8 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
     f = (bam1_t *)SvIV(SvRV(*elem));
 
     fstart = f->core.pos+1;
-    fend = bam_endpos(f); 
-    
+    fend = bam_endpos(f);
+
 
     sbin = (int)((fstart - START) / sample_size);
     ebin = (int)((fend - START) / sample_size);
@@ -973,7 +973,7 @@ AV * c_coverage(SV *self, SV *features_ref, double sample_size, int lbin, int ST
 
     if (sbin < 0) sbin = 0;
     if (ebin > lbin) ebin = lbin;
-    
+
     for (j = sbin; j <= ebin; j++) {
       coverage[j]++;
     }
