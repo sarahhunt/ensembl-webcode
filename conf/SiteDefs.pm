@@ -251,7 +251,7 @@ our @ENSEMBL_HTDOCS_DIRS  = ($ENSEMBL_DOCROOT, "$ENSEMBL_SERVERROOT/biomart-perl
 
 our $APACHE_DIR           = "$ENSEMBL_SERVERROOT/apache2";
 our $APACHE_BIN           = "$APACHE_DIR/bin/httpd";
-our $HTSLIB_DIR           = " /localsw/bin/htslib-1.3";
+our $HTSLIB_DIR           = "/localsw/bin/htslib-1.3";
 our $BIOPERL_DIR          = "$ENSEMBL_SERVERROOT/bioperl-live";
 our $MINI_BIOPERL_161_DIR = "$ENSEMBL_SERVERROOT/mini-bioperl-161";
 
