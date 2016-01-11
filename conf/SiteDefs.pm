@@ -1,8 +1,8 @@
 #!/usr/local/bin/perl -w
 ###############################################################################
-#   
+#
 #   Name:           SiteDefs.pm
-#   
+#
 #   Description:    Localisation config for Ensembl website.
 #
 ###############################################################################
@@ -169,7 +169,7 @@ our $ENSEMBL_MART_ENABLED      = 0;
 
 our $ENSEMBL_ORM_DATABASES     = {};
 
-# ENSEMBL_API_VERBOSITY: 
+# ENSEMBL_API_VERBOSITY:
 #    0 OFF NOTHING NONE
 # 1000 EXCEPTION THROW
 # 2000 (DEFAULT) WARNING WARN
@@ -201,11 +201,11 @@ my $i = 0;
 
 foreach (@$ENSEMBL_DEBUG_FLAG_NAMES) {
   no strict 'refs';
-  
+
   my $variable_name = "SiteDefs::ENSEMBL_DEBUG_$_";
     $$variable_name = 1 << ($i++)
     ;
-    
+
   $ENSEMBL_DEBUG_VERBOSE_ERRORS <<= 1
   ;
   $ENSEMBL_DEBUG_VERBOSE_ERRORS  += 1;
@@ -216,12 +216,12 @@ our ($ENSEMBL_PIDFILE, $ENSEMBL_ERRORLOG, $ENSEMBL_CUSTOMLOG);
 
 # TMP dirs
 # ENSEMBL_TMP_DIR points to a filesystem dir
-# ENSEMBL_TMP_URL points to a URL location. 
+# ENSEMBL_TMP_URL points to a URL location.
 # httpd.conf creates an alias for ENSEMBL_TMP_URL to ENSEMBL_TMP_DIR
 # httpd.conf also validates the existence of ENSEMBL_TMP_DIR.
 
 our $ENSEMBL_TMP_CREATE     = 1; # Create tmp dirs on server startup if not found?
-our $ENSEMBL_TMP_DELETE     = 0; # Delete files from the tmp dir on server startup? 
+our $ENSEMBL_TMP_DELETE     = 0; # Delete files from the tmp dir on server startup?
 our $ENSEMBL_TMP_TMP        = '/tmp';
 our $ENSEMBL_TMP_URL        = '/tmp';
 our $ENSEMBL_TMP_URL_IMG    = '/img-tmp';
@@ -251,7 +251,7 @@ our @ENSEMBL_HTDOCS_DIRS  = ($ENSEMBL_DOCROOT, "$ENSEMBL_SERVERROOT/biomart-perl
 
 our $APACHE_DIR           = "$ENSEMBL_SERVERROOT/apache2";
 our $APACHE_BIN           = "$APACHE_DIR/bin/httpd";
-our $HTSLIB_DIR           = "/ensemblweb/rn6/ens_io_1/htslib";
+our $HTSLIB_DIR           = " /localsw/bin/htslib-1.3";
 our $BIOPERL_DIR          = "$ENSEMBL_SERVERROOT/bioperl-live";
 our $MINI_BIOPERL_161_DIR = "$ENSEMBL_SERVERROOT/mini-bioperl-161";
 
@@ -293,7 +293,7 @@ our $ENSEMBL_ENCRYPT_0        = 0x16a3b3; # Encryption keys for session
 our $ENSEMBL_ENCRYPT_1        = 'a9';     # Encryption keys for session
 our $ENSEMBL_ENCRYPT_2        = 'xX';     # Encryption keys for session
 our $ENSEMBL_ENCRYPT_3        = '2Q';     # Encryption keys for session
-our $ENSEMBL_ENCRYPT_EXPIRY   = 60;       # Cookies last 60 days 
+our $ENSEMBL_ENCRYPT_EXPIRY   = 60;       # Cookies last 60 days
 our $ENSEMBL_ENCRYPT_REFRESH  = 30;       # Refresh cookies with less than 30 days to go
 
 ###############################################################################
@@ -333,10 +333,10 @@ our $OBJECT_TO_SCRIPT = {
 
   Info                => 'AltPage',
   Search              => 'Page',
-  
+
   UserConfig          => 'Modal',
   UserData            => 'Modal',
-  Help                => 'Modal',  
+  Help                => 'Modal',
 
   CSS                 => 'CSS',
 };
@@ -382,46 +382,46 @@ set_species_aliases();
 
 sub update_conf {
   our $ENSEMBL_PLUGIN_ROOTS = [];
-  
+
   my @plugins = reverse @{$ENSEMBL_PLUGINS || []}; # Go on in reverse order so that the first plugin is the most important
-  
+
   while (my ($dir, $name) = splice @plugins, 0, 2) {
     my $plugin_conf = "${name}::SiteDefs";
 
     if (!-d $dir) {
       die "[ERROR] Plugin $name could not be loaded: $dir not found.\n";
     }
-    
+
     eval qq{ package $plugin_conf; use ConfigDeferrer qw(defer); }; # export 'defer' to the plugin SiteDefs
     eval qq{ require '$dir/conf/SiteDefs.pm' };                     # load the actual plugin SiteDefs
-    
+
     if ($@) {
       my $message = "Can't locate $dir/conf/SiteDefs.pm in";
       error("Error requiring $plugin_conf:\n$@") unless $@ =~ m:$message:;
     } else {
       my $func = "${plugin_conf}::update_conf";
-      
+
       eval "$func()";
-      
+
       if ($@) {
         my $message = "Undefined subroutine &$func called at ";
-        
+
         if ($@ =~ /$message/) {
           error("Function $func not defined in $dir/conf/SiteDefs.pm");
-        } else {       
+        } else {
           error("Error calling $func in $dir/conf/SiteDefs.pm\n$@");
         }
       }
       register_deferred_configs();
     }
-    
-    unshift @ENSEMBL_PERL_DIRS,     "$dir/perl"; 
-    unshift @ENSEMBL_HTDOCS_DIRS,   "$dir/htdocs"; 
+
+    unshift @ENSEMBL_PERL_DIRS,     "$dir/perl";
+    unshift @ENSEMBL_HTDOCS_DIRS,   "$dir/htdocs";
     unshift @$ENSEMBL_PLUGIN_ROOTS, $name;
-    push    @ENSEMBL_CONF_DIRS,     "$dir/conf"; 
+    push    @ENSEMBL_CONF_DIRS,     "$dir/conf";
   }
   build_deferred_configs();
-  
+
   push @ENSEMBL_LIB_DIRS, (
     "$ENSEMBL_WEBROOT/modules",
     $MINI_BIOPERL_161_DIR,
@@ -442,27 +442,27 @@ sub set_species_aliases {
 
   ## Add self refernetial elements to ENSEMBL_SPECIES_ALIASES
   ## And one without the _ in...
-  
+
   our $ENSEMBL_SPECIES_ALIASES = {};
-  
-  $ENSEMBL_DATASETS = [ sort keys %__species_aliases ] unless scalar @$ENSEMBL_DATASETS; 
- 
+
+  $ENSEMBL_DATASETS = [ sort keys %__species_aliases ] unless scalar @$ENSEMBL_DATASETS;
+
   foreach my $name (@$ENSEMBL_DATASETS) {
     $ENSEMBL_SPECIES_ALIASES->{lc $_} = $name for @{$__species_aliases{$name}};
-    
+
     my $key = lc $name;
     $ENSEMBL_SPECIES_ALIASES->{$key} = $name;   # homo_sapiens
-    
+
     $key =~ s/\.//g;
     $ENSEMBL_SPECIES_ALIASES->{$key} = $name;   # homosapiens
-    
+
     $key = lc $name;
     $key =~ s/^([a-z])[a-z]*_/$1_/g;
     $ENSEMBL_SPECIES_ALIASES->{$key} = $name;   # h_sapiens
-    
+
     $key =~ s/_/\./g;
     $ENSEMBL_SPECIES_ALIASES->{$key} = $name;   # h.sapiens
-    
+
     $key =~ s/_//g;
     $ENSEMBL_SPECIES_ALIASES->{$key} = $name;   # hsapiens
   }
@@ -485,7 +485,7 @@ sub set_species_aliases {
 sub error {
   my $message = join "\n", @_;
      $message =~ s/\s+$//sm;
-  
+
   warn '#' x 78, "\n",
        wrap('# ', '# ', $message),
        "\n", '#' x 78, "\n";
@@ -511,16 +511,16 @@ Use flags to enable what you would like to cache:
 =cut
 sub memcached {
   my $pars = shift;
-  
+
   unless (scalar @{$pars->{'servers'} || []}) {
     $SiteDefs::ENSEMBL_MEMCACHED = undef;
     return;
   }
-  
+
   $pars->{'debug'}    = 0  unless exists $pars->{'debug'};
   $pars->{'hm_stats'} = 0  unless exists $pars->{'hm_stats'};
-  
-  my %flags = map { $_ => 1 } qw( 
+
+  my %flags = map { $_ => 1 } qw(
     PLUGGABLE_PATHS
     STATIC_PAGES_CONTENT
     WEBSITE_DB_DATA
@@ -531,7 +531,7 @@ sub memcached {
     OBJECTS_COUNTS
     IMAGE_CONFIG
   );
-  
+
   foreach my $k (keys %{$pars->{'flags'}}) {
     if ($pars->{'flags'}{$k}) {
       $flags{$k} = 1;
@@ -539,9 +539,9 @@ sub memcached {
       delete $flags{$k};
     }
   }
-  
+
   $pars->{'flags'} = [ keys %flags ];
-  
+
   $SiteDefs::ENSEMBL_MEMCACHED = $pars;
 
   $SiteDefs::ENSEMBL_COHORT =
@@ -589,16 +589,16 @@ error
 
 =head1 BUGS AND LIMITATIONS
 
-A list of known problems with the module, together with some indication of 
+A list of known problems with the module, together with some indication of
 whether they are likely to be fixed in an upcoming release.
 
 =head1 AUTHOR
-                                                                                
+
 [name], Ensembl Web Team
 Support enquiries: helpdesk@ensembl.org
-                                                                                
+
 =head1 LICENSE
-                                                                                
+
 Copyright [1999-2015] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -614,7 +614,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 =head1 NAME
-                                                                                
+
 SiteDefs
 
 =head1 SYNOPSIS
@@ -647,6 +647,5 @@ error
 
 =head1 BUGS AND LIMITATIONS
 
-A list of known problems with the module, together with some indication of 
+A list of known problems with the module, together with some indication of
 whether they are likely to be fixed in an upcoming release.
-
