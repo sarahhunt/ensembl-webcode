@@ -19,6 +19,7 @@ limitations under the License.
 package EnsEMBL::Draw::GlyphSet::Generic;
 
 ### Parent for new-style glyphsets
+### TODO - subsume this functionality into its parent in due course
 
 use strict;
 
@@ -87,6 +88,9 @@ sub my_empty_label {
   my $self = shift;
   return sprintf('No features from %s on this strand', $self->my_config('name'));
 }
+
+## These generic drawing methods all need to live in the parent, not the role,
+## because they may be shared between roles
 
 sub draw_features {
   my ($self, $subtracks) = @_;
@@ -323,50 +327,5 @@ sub configure_strand {
 
   return ($default_strand, $force_strand);
 }
-
-sub render_as_transcript_nolabel {
-  my $self = shift;
-  $self->{'my_config'}->set('drawing_style', ['Feature::Transcript']);
-  $self->draw_features;
-}
-
-sub render_as_transcript_label {
-  my $self = shift;
-  $self->{'my_config'}->set('drawing_style', ['Feature::Transcript']);
-  $self->{'my_config'}->set('show_labels', 1);
-  $self->draw_features;
-}
-
-sub render_interaction {
-  my $self = shift;
-  $self->{'my_config'}->set('drawing_style', ['Feature::Interaction']);
-  $self->{'my_config'}->set('bumped', 0); 
-  $self->draw_features;
-  ## Limit track height to that of biggest arc
-  my $max_height  = $self->{'my_config'}->get('max_height');
-  $self->{'maxy'} = $max_height if $max_height;
-}
-
-sub render_compact {
-  my $self = shift;
-  $self->{'my_config'}->set('drawing_style', ['Graph::Barcode']);
-  $self->{'my_config'}->set('height', 8);
-  $self->{'my_config'}->set('no_axis', 1);
-  $self->_render_aggregate;
-}
-
-sub render_signal {
-  my $self = shift;
-  $self->{'my_config'}->set('drawing_style', ['Graph::Bar']);
-  $self->{'my_config'}->set('height', 60);
-  $self->_render_aggregate;
-}
-
-sub render_tiling {
-  ## For backwards compatibility - because 'tiling' is a meaningless name!
-  my $self = shift;
-  $self->render_signal;
-}
-
 
 1;
