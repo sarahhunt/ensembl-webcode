@@ -61,7 +61,6 @@ sub content {
   if (scalar keys(%$table_rows) != 0) {
     $self->add_table_columns($table, $column_flags);
     $table->add_rows(@$_) for values %$table_rows;
-    $html .= sprintf qq{<h3>Significant association(s)</h3>};
     $html .= $table->render;
   }
   
@@ -80,6 +79,8 @@ sub add_table_columns {
   $table->add_columns(
     { key => 'disease', title => 'Phenotype, disease and trait', align => 'left', sort => 'html' },
     { key => 'source',  title => 'Source(s)',               align => 'left', sort => 'html' },
+    { key => 'terms',   title => 'Mapped Terms',            align => 'left', sort => 'html' },
+    { key => 'accessions', title => 'Ontology Accessions',  align => 'left', sort => 'html' },
   );
   if ($column_flags->{'s_evidence'}) {
     $table->add_columns({ key => 's_evidence', title => 'Supporting evidence', align => 'left', sort => 'html' });
@@ -293,10 +294,42 @@ sub table_data {
       $allele = $self->zmenu_link($url, $zmenu_url, $allele);
     }
 
+    ## ontology information 
+    my ($terms,  $accessions);
+    my $ontology_accessions = $pf->phenotype()->ontology_accessions();
+
+    my $adaptor = $hub->get_databases('go')->{'go'}->get_OntologyTermAdaptor;
+
+
+    foreach my $oa (@{$ontology_accessions}){
+
+      ## only these ontologies have links defined currently
+      next unless $oa =~ /^EFO|^ORDO|^DO|^HP/;
+
+      ## build link out to Ontology source
+      my $iri_form = $oa;
+      $iri_form =~ s/\:/\_/;
+
+      my $ontology_link;
+      $ontology_link = $hub->get_ExtURL_link($oa, 'EFO',  $iri_form) if $oa =~ /^EFO|^ORDO/;
+      $ontology_link = $hub->get_ExtURL_link($oa, 'DOID', $iri_form) if $oa =~ /^DO/;
+      $ontology_link = $hub->get_ExtURL_link($oa, 'HPO',  $iri_form) if $oa =~ /^HP/;
+
+      push @{$accessions}, $ontology_link ;
+ 
+      ## get term name from ontology db
+      my $ontologyterm = $adaptor->fetch_by_accession($oa);
+      if (defined $ontologyterm){
+        my $name = $ontologyterm->name();
+        push @{$terms}, $ontologyterm->name(); 
+      }
+    }
 
     my $row = {
       disease   => $disease,
       source    => $source,
+      terms     => $terms->[0]? join(", ", @{$terms}) : '-', 
+      accessions => $accessions->[0]? join(", ", @{$accessions}) : '-', 
       study     => ($external_reference) ? $external_reference : '-',
       clin_sign => ($clin_sign) ? $clin_sign : '-',
       genes     => ($gene) ? $gene : '-',
@@ -305,7 +338,7 @@ sub table_data {
       stats     => $stats_values,
       locations => $locations
     };
-  
+
     if ($a_study_source){
       $row->{s_evidence} = $a_study_source;
       $column_flags{s_evidence} = 1;

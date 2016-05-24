@@ -37,6 +37,7 @@ my @HANDLES_TO_DISCONNECT;
 sub OBJECT_PARAMS {
   [
     [ 'Phenotype'           => 'ph'  ],
+    [ 'PhenotypeOntologyTerm' => 'oa'  ],
     [ 'Location'            => 'r'   ],
     [ 'Gene'                => 'g'   ],
     [ 'Transcript'          => 't'   ],

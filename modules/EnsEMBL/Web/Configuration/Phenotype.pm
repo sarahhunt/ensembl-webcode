@@ -40,15 +40,33 @@ sub tree_cache_key {
 sub populate_tree {
   my $self = shift;
   my $hub  = $self->hub;
-  
+
   $self->create_node('All', 'List of Phenotypes', [qw(all_phenotypes EnsEMBL::Web::Component::Phenotype::All )] );
 
   my $avail = ($self->object && $self->object->phenotype_id) ? 1 : 0;
+
   my $title = $self->object ? $self->object->long_caption : '';
-  $self->create_node('Locations', "Locations on genome",
-    [qw(locations EnsEMBL::Web::Component::Phenotype::Locations )],
+
+  ## This can only be drawn for limited numbers of features
+  $self->create_node('Karyotype', "Karyotype View",
+    [qw(sum EnsEMBL::Web::Component::Phenotype::Sum  locations EnsEMBL::Web::Component::Phenotype::Locations )],
     { 'availability' => $avail, 'concise' => $title },
   );
+
+  $self->create_node('Features', "Feature View",
+    [qw(sum EnsEMBL::Web::Component::Phenotype::Sum  locations EnsEMBL::Web::Component::Phenotype::Features )],
+    { 'availability' => $avail, 'concise' => $title },
+  );
+
+
+
+  my $ot_avail = ($self->object->pheno && $self->object->pheno->ontology_accessions) ? 1 : 0;
+  $self->create_node('CoMapped', 'Similar Phenotypes',
+    [qw( sum EnsEMBL::Web::Component::Phenotype::Sum  
+         comapped EnsEMBL::Web::Component::Phenotype::MatchingPhenotypes  )],
+    { 'availability' => $ot_avail, 'concise' => 'Matching Phenotypes' }
+  );
+
 
 }
 

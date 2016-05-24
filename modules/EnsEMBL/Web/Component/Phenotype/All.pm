@@ -22,7 +22,7 @@ use strict;
 use warnings;
 no warnings 'uninitialized';
 
-use base qw(EnsEMBL::Web::Component);
+use base qw(EnsEMBL::Web::Component EnsEMBL::Web::Component::Phenotype);
 
 sub _init {
   my $self = shift;
@@ -46,7 +46,15 @@ sub content {
     unless ($index{$initial}) {
       push @toc, sprintf('<a href="#phenotypes-%s">%s</a>', $initial, $initial);
     }
-    $list{$initial}{uc($desc)} .= sprintf('<p><a href="/%s/Phenotype/Locations?ph=%s">%s</a></p>', $self->hub->species, $phen->dbID, ucfirst($desc));
+    ## ontology accessions
+    my @links;
+    foreach my $acc( @{$phen->ontology_accessions()}){
+      push @links, $self->SUPER::pheno_ont_url( $acc );
+    }
+    my $ont_link = '('.  join(", ", @links) .')' if  @links; 
+
+    $list{$initial}{uc($desc)} .= sprintf('<p><a href="/%s/Phenotype/CoMapped?ph=%s">%s</a> '.  $ont_link .' </p>', $self->hub->species, $phen->dbID, ucfirst($desc));
+
     $index{$initial}++;
   } 
 

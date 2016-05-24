@@ -22,7 +22,7 @@ use strict;
 
 use base qw(EnsEMBL::Web::Object::Feature);
 
-sub default_action { return 'Locations'; }
+sub default_action { return 'CoMapped'; }
 
 sub short_caption {
   my $self = shift;
@@ -50,6 +50,21 @@ sub long_caption {
 
 sub phenotype_id      { $_[0]->{'data'}{'phenotype_id'} = $_[1] if $_[1]; return $_[0]->{'data'}{'phenotype_id'}; }
 
+## sort this out - nothing coming from default
+## calling it Obj breaks Locations
+#sub Obj{
+## return underlying Variation API Phenotype object
+sub pheno{
+  my $self = shift;
+  return $self->{_pheno} if $self->{_pheno};
+  return unless $self->hub->param('ph');
+  my $vardb       = $self->hub->database('variation');
+  my $pa          = $vardb->get_adaptor('Phenotype');
+  $self->{_pheno} = $pa->fetch_by_dbID($self->hub->param('ph'));
+  return $self->{_pheno} ;
+}
+
+
 sub has_features {
   my $self = shift;
   return $self->Obj->{'Variation'} ? 1 : 0;
@@ -69,6 +84,7 @@ sub get_all_phenotypes {
   my $vardb = $self->hub->database('variation');
   my $pa    = $vardb->get_adaptor('Phenotype');
   return $pa->fetch_all();
+  
 };
 
 sub get_gene_display_label {
@@ -78,6 +94,65 @@ sub get_gene_display_label {
   my $xref  = $gene && $gene->display_xref;
 
   return $xref && $xref->display_id || '';
+}
+
+sub get_ontology_term_name{
+  my ($self, $ontology_accession) = @_;
+
+  my $ontolterm  = $self->hub->database('ontology')->get_adaptor('OntologyTerm')->fetch_by_stable_id($ontology_accession);
+
+  return $ontolterm && $ontolterm->name() || '';
+}
+
+sub get_phenotype_by_ontology_accession{
+  my ($self, $ontology_accession) = @_;
+  my $vardb   = $self->hub->database('variation');
+  my $pa      = $vardb->get_adaptor('Phenotype');
+  my $ps      = $pa->fetch_all_by_ontology_accession($ontology_accession);
+  return $ps;
+}
+
+sub get_OntologyTerms{
+  my $self = shift;
+
+  return unless $self->hub->param('ph');
+  my $vardb   = $self->hub->database('variation');
+  my $pa      = $vardb->get_adaptor('Phenotype');
+  my $p       = $pa->fetch_by_dbID($self->hub->param('ph'));
+  return undef unless defined $p;
+
+  my $ontology_accessions = $p->ontology_accessions();
+  my $adaptor = $self->hub->get_databases('go')->{'go'}->get_OntologyTermAdaptor;
+
+  my @ot;
+  foreach my $oa (@{$ontology_accessions}){
+#    warn "looking for accession $oa\n"; 
+    ## only these ontologies have links defined currently
+    next unless $oa =~ /^EFO|^Orphanet|^DO|^HP|^GO/;
+ 
+    my $ontologyterm = $adaptor->fetch_by_accession($oa);
+#    warn "Got ont term " . Dumper $ontologyterm if defined $ontologyterm;
+    push @ot, $ontologyterm if defined $ontologyterm;
+  }
+#warn "returning data " . Dumper \@ot ;
+  return (@ot ? \@ot : undef);
+}
+
+sub get_PhenotypeFeatures_by_ontology_accession{
+  my ($self, $ontology_accession) = @_;
+  my $vardb   = $self->hub->database('variation');
+  ## put convenience method in adaptor for speed?
+  my $pa      = $vardb->get_adaptor('Phenotype');
+  my $ps      = $pa->fetch_by_ontology_accession($ontology_accession);
+
+
+  my $pfa     = $vardb->get_adaptor('PhenotypeFeature');
+  my @pheno_feats;
+  foreach my $p(@{$ps}){
+    my $pfs     = $pfa->fetch_all_by_phenotype_id_source_name($p->dbID);
+    push @pheno_feats, $pfs ;
+  }
+  return \@pheno_feats;
 }
 
 1;
