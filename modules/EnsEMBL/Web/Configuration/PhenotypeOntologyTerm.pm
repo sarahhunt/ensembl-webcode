@@ -80,6 +80,13 @@ sub populate_tree {
   );
 
   ## availability!
+  $self->create_node('Karyotype', 'Karyotype',
+    [qw( Karyotype EnsEMBL::Web::Component::PhenotypeOntologyTerm::Karyotype )],
+     { 'availability' => 0}
+  );
+
+
+  ## availability!
 #  $self->create_node('Citations', 'Citations',
 #    [qw(citations EnsEMBL::Web::Component::PhenotypeOntologyTerm::Citations )],
 #     { 'availability' => 0}

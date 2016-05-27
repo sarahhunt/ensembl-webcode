@@ -304,14 +304,15 @@ sub table_data {
     foreach my $oa (@{$ontology_accessions}){
 
       ## only these ontologies have links defined currently
-      next unless $oa =~ /^EFO|^ORDO|^DO|^HP/;
+      next unless $oa =~ /^EFO|^Orph|^DO|^HP/;
 
       ## build link out to Ontology source
       my $iri_form = $oa;
       $iri_form =~ s/\:/\_/;
 
       my $ontology_link;
-      $ontology_link = $hub->get_ExtURL_link($oa, 'EFO',  $iri_form) if $oa =~ /^EFO|^ORDO/;
+      $ontology_link = $hub->get_ExtURL_link($oa, 'EFO',  $iri_form) if $oa =~ /^EFO/;
+      $ontology_link = $hub->get_ExtURL_link($oa, 'ORDO',  $iri_form) if $oa =~ /^Orp/;
       $ontology_link = $hub->get_ExtURL_link($oa, 'DOID', $iri_form) if $oa =~ /^DO/;
       $ontology_link = $hub->get_ExtURL_link($oa, 'HPO',  $iri_form) if $oa =~ /^HP/;
 
