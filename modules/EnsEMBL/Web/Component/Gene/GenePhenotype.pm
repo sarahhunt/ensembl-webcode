@@ -22,7 +22,7 @@ use strict;
 
 use Bio::EnsEMBL::Variation::Utils::Constants;
 use HTML::Entities qw(encode_entities);
-use base qw(EnsEMBL::Web::Component::Gene);
+use base qw(EnsEMBL::Web::Component::Gene EnsEMBL::Web::Component::Phenotype);
 
 sub _init {
   my $self = shift;
@@ -54,6 +54,7 @@ sub gene_phenotypes {
   my (@rows, %list, $list_html);
   my $has_allelic = 0;  
   my $has_study   = 0;
+  my $has_ontology_accession = 0;
 
   return if($obj->isa('Bio::EnsEMBL::Compara::Family'));
 
@@ -105,6 +106,11 @@ sub gene_phenotypes {
         push @{$features->{$key}->{gender}}, $strain_gender;
         $features->{$key}->{locations} = $locs;
         $features->{$key}->{pmid} = $pmids;
+
+        ## link out to ontology source if description mapped to a ontology term
+        my $features->{$key}->{accessions} = $self->phenotype_ontology_link($pf);
+        $has_ontology_accession = 1 if defined $features->{$key}->{accessions};
+
       }
       foreach my $key (sort keys %$features) {
         my ($phenotype, $strain_name, $allele_symbol) = split("\t", $key);
@@ -114,7 +120,8 @@ sub gene_phenotypes {
           allele => $allele_symbol,
           strain => $strain_name .  " (" . join(', ', sort @{$features->{$key}->{gender}}) . ")",
           locations => $features->{$key}->{locations},
-          study => $features->{$key}->{pmid}
+          study => $features->{$key}->{pmid},
+          accession => $features->{$key}->{accessions}
         };
       }
     } else {    
@@ -124,6 +131,9 @@ sub gene_phenotypes {
         my $ext_id  = $pf->external_id;
 
         my $attribs = $pf->get_all_attributes;
+
+        my $accessions = $self->phenotype_ontology_link($pf);
+        $has_ontology_accession = 1 if defined $accessions;
 
         my $source_uc = uc $source;
            $source_uc =~ s/\s/_/g;
@@ -164,7 +174,7 @@ sub gene_phenotypes {
           $has_study = 1;
         }
 
-        push @rows, { source => $source_url, phenotype => $phen, locations => $locs, allelic => $allelic_requirement, study => $pmids };
+        push @rows, { source => $source_url, phenotype => $phen, locations => $locs, allelic => $allelic_requirement, study => $pmids, accession => $accessions };
       }
     }
   }
@@ -178,6 +188,11 @@ sub gene_phenotypes {
     if ($has_study == 1) {
       push @columns, { key => 'study', align => 'left', title => 'Study' , align => 'left', sort => 'html' };
     }
+
+    if ($has_ontology_accession == 1) {
+      push @columns, { key => 'accession', align => 'left', title => 'Ontology Accession' , align => 'left', sort => 'html' };
+    }
+
     if ($species eq 'Mouse') {
       push @columns, (
         { key => 'locations', align => 'left', title => 'Genomic Locations' },
@@ -218,4 +233,19 @@ sub add_study_links {
   return join(', ', @pmids_list);
 }
 
+sub phenotype_ontology_link{
+  my $self = shift;
+  my $pf   = shift;
+
+  my $accessions = $pf->phenotype()->ontology_accessions();
+  return undef unless $accessions;
+
+  my @links;
+  foreach my $acc (@{$accessions}){
+    my $link  = $self->external_ontology_link($acc);
+    push @links, $link if defined $link;
+  }
+
+  return join(", ", @links);
+}
 1;

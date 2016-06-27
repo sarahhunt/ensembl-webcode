@@ -22,7 +22,7 @@ use strict;
 
 use HTML::Entities qw(encode_entities);
 use Bio::EnsEMBL::Utils::Sequence qw(reverse_comp);
-use base qw(EnsEMBL::Web::Component::Variation);
+use base qw(EnsEMBL::Web::Component::Variation EnsEMBL::Web::Component::Phenotype);
 
 sub _init {
   my $self = shift;
@@ -80,7 +80,9 @@ sub add_table_columns {
   $table->add_columns(
     { key => 'disease', title => 'Phenotype, disease and trait', align => 'left', sort => 'html' },
     { key => 'source',  title => 'Source(s)',               align => 'left', sort => 'html' },
-  );
+    { key => 'terms',   title => 'Mapped Terms',            align => 'left', sort => 'html' },
+    { key => 'accessions', title => 'Ontology Accessions',  align => 'left', sort => 'html' },
+    );
   if ($column_flags->{'s_evidence'}) {
     $table->add_columns({ key => 's_evidence', title => 'Supporting evidence', align => 'left', sort => 'html' });
   }
@@ -293,10 +295,30 @@ sub table_data {
       $allele = $self->zmenu_link($url, $zmenu_url, $allele);
     }
 
+    ## ontology information 
+    my ($terms,  $accessions);
+    my $ontology_accessions = $pf->phenotype()->ontology_accessions();
+
+    my $adaptor = $hub->get_databases('go')->{'go'}->get_OntologyTermAdaptor;
+
+
+    foreach my $oa (@{$ontology_accessions}){
+      my $ontology_link = $self->external_ontology_link($oa);
+      push @{$accessions}, $ontology_link if defined $ontology_link;
+ 
+      ## get term name from ontology db
+      my $ontologyterm = $adaptor->fetch_by_accession($oa);
+      if (defined $ontologyterm){
+        my $name = $ontologyterm->name();
+        push @{$terms}, $ontologyterm->name(); 
+      }
+    }
 
     my $row = {
       disease   => $disease,
       source    => $source,
+      terms     => $terms->[0]? join(", ", @{$terms}) : '-', 
+      accessions => $accessions->[0]? join(", ", @{$accessions}) : '-', 
       study     => ($external_reference) ? $external_reference : '-',
       clin_sign => ($clin_sign) ? $clin_sign : '-',
       genes     => ($gene) ? $gene : '-',
