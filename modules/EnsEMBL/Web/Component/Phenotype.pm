@@ -67,13 +67,6 @@ sub get_phenotypes_mapping_to_same_terms{
 
     $count_results++;
 
-    ## extract feature counts & sources
-#    my $feat       = $self->hub->get_adaptor('get_PhenotypeFeatureAdaptor', 'variation')->fetch_all_by_phenotype_id_source_name($pheno->dbID());
-#    my $feat_count = scalar(@{$feat});
-#    my %source;
-#    foreach my $pf(@{$feat}){
-#      $source{$pf->source_name()} = 1;
-#    }
  
     my $feat_count;
     my $counts  = $self->hub->get_adaptor('get_PhenotypeFeatureAdaptor', 'variation')->count_all_with_source_by_Phenotype($pheno);

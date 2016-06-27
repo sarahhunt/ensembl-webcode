@@ -54,8 +54,7 @@ sub populate_tree {
   my $ot_avail = ($self->object->pheno && $self->object->pheno->ontology_accessions) ? 1 : 0;
   my $title = "Phenotypes mapped to the same ontology terms as " . $self->object->get_phenotype_desc;
   $self->create_node('CoMapped', 'Similar Phenotypes',
-    [qw( ontolterm EnsEMBL::Web::Component::Phenotype::OntologyTerm  
-         comapped EnsEMBL::Web::Component::Phenotype::MatchingPhenotypes  )],
+    [qw( comapped EnsEMBL::Web::Component::Phenotype::MatchingPhenotypes  )],
     { 'availability' => $ot_avail, 'concise' => $title }
 );
 
