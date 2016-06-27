@@ -46,9 +46,18 @@ sub populate_tree {
   my $avail = ($self->object && $self->object->phenotype_id) ? 1 : 0;
   my $title = $self->object ? $self->object->long_caption : '';
   $self->create_node('Locations', "Locations on genome",
-    [qw(locations EnsEMBL::Web::Component::Phenotype::Locations )],
+    [qw(ontolterm EnsEMBL::Web::Component::Phenotype::OntologyTerm 
+        locations EnsEMBL::Web::Component::Phenotype::Locations )],
     { 'availability' => $avail, 'concise' => $title },
   );
+
+  my $ot_avail = ($self->object->pheno && $self->object->pheno->ontology_accessions) ? 1 : 0;
+  my $title = "Phenotypes mapped to the same ontology terms as " . $self->object->get_phenotype_desc;
+  $self->create_node('CoMapped', 'Similar Phenotypes',
+    [qw( ontolterm EnsEMBL::Web::Component::Phenotype::OntologyTerm  
+         comapped EnsEMBL::Web::Component::Phenotype::MatchingPhenotypes  )],
+    { 'availability' => $ot_avail, 'concise' => $title }
+);
 
 }
 
